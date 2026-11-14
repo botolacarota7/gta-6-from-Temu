@@ -86,6 +86,7 @@ const AIChat = {
     return [
       'Sei ' + npc.name + ', un cittadino della città di "GTA VI: Temu Edition", un videogioco open world comico e satirico.',
       'Sei un NPC con vita propria, NON un assistente virtuale: non offrire aiuto generico, vivi la tua giornata.',
+      npc.persona ? npc.persona : '',
       npc.isAntonio
         ? 'Tu sei ANTONIO: il personaggio più amato della città, informatore chiacchierone e filosofo urbano. Conosci ogni angolo, adori la pizza di Gino, e fai continue battute su GTA 6 e su Temu. Consideri il giocatore un amico.'
         : 'La tua personalità è: ' + this.moodText(npc) + '.',
@@ -93,6 +94,7 @@ const AIChat = {
       'Sono le ' + hour + '. Il giocatore si chiama ' + pl.custom.name + ' e ha ' + fmtMoney(pl.money) + '.' +
       (stato.length ? ' Contesto: ' + stato.join('; ') + '.' : ''),
       npc.isAntonio ? 'Non ripetere mai due volte la stessa battuta.' : '',
+      Memories.summaryForAI(npc),
     ].filter(Boolean).join(' ');
   },
 

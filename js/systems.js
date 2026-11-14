@@ -692,5 +692,16 @@ const Systems = {
 
     // tempo di gioco: 1 ora = 30 secondi reali
     Game.timeMin = (Game.timeMin + dt * 2) % 1440;
+
+    // consegne Temu
+    Phone.updateDelivery();
+
+    // SMS in arrivo (spam e consigli di Antonio)
+    this.smsT = Math.max(0, (this.smsT === undefined ? 90 : this.smsT) - dt);
+    if (this.smsT <= 0) {
+      this.smsT = rand(150, 300);
+      if (Math.random() < 0.6) Phone.receiveSMS('spam', choice(Phone.spamPool));
+      else Phone.receiveSMS('antonio', choice(Phone.antonioTips));
+    }
   },
 };
