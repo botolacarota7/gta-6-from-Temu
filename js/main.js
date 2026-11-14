@@ -973,6 +973,7 @@ function boot() {
   document.getElementById('btn-help-close').onclick = () => document.getElementById('screen-help').classList.add('hidden');
   document.getElementById('btn-ai').onclick = () => { sfx('click'); UI.openAISettings(); };
   document.getElementById('btn-ai2').onclick = () => { sfx('click'); UI.openAISettings(); };
+  document.getElementById('hud-phone').onclick = () => Phone.toggle();
   document.getElementById('btn-resume').onclick = () => togglePause();
   document.getElementById('btn-save').onclick = () => Systems.save();
   document.getElementById('btn-quit').onclick = () => {

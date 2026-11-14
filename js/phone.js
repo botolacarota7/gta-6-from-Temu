@@ -59,6 +59,8 @@ const Phone = {
     this.open = !this.open;
     const el = document.getElementById('phone');
     el.classList.toggle('hidden', !this.open);
+    const btn = document.getElementById('hud-phone');
+    if (btn) btn.classList.toggle('hidden-btn', this.open);
     sfx('click');
     if (this.open) { this.app = 'home'; this.render(); }
   },
@@ -66,6 +68,8 @@ const Phone = {
   close() {
     this.open = false;
     document.getElementById('phone').classList.add('hidden');
+    const btn = document.getElementById('hud-phone');
+    if (btn) btn.classList.remove('hidden-btn');
     this.calling = null;
   },
 
