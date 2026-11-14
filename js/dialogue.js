@@ -318,7 +318,9 @@ const Dialogue = {
     }
     const p = npc.mood === 'scared' ? 'scared' : npc.mood;
     const own = topic.replies[p] || [];
-    return own.concat(topic.replies.all || []);
+    const pool = own.concat(topic.replies.all || []);
+    if (pool.length) return pool;
+    return topic.replies.neutral || topic.replies.all || this.fallbacks;
   },
 
   matchTopic(text) {
