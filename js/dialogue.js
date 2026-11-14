@@ -316,7 +316,10 @@ const Dialogue = {
     if (npc.isAntonio && topic.replies.antonio) {
       return topic.replies.antonio.concat(topic.replies.all || []);
     }
-    const p = npc.mood === 'scared' ? 'scared' : npc.mood;
+    const tier = Memories.tier(Memories.get(npc.name));
+    let p = npc.state === 'flee' ? 'scared' : npc.mood;
+    if (tier === 'warm') p = 'friendly';
+    else if (tier === 'cold' || tier === 'enemy') p = 'grumpy';
     const own = topic.replies[p] || [];
     const pool = own.concat(topic.replies.all || []);
     if (pool.length) return pool;
@@ -371,8 +374,9 @@ const Dialogue = {
 
   sideEffects(npc, topicId) {
     const pl = Game.player;
+    const memTier = Memories.tier(Memories.get(npc.name));
     if (topicId === 'money') {
-      if (npc.mood === 'friendly' && !npc.gaveMoney && Math.random() < 0.6) {
+      if ((npc.mood === 'friendly' || memTier === 'warm' || memTier === 'friendly') && !npc.gaveMoney && Math.random() < 0.6) {
         npc.gaveMoney = true;
         const amount = randInt(5, 30);
         pl.money += amount;

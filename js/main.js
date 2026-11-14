@@ -98,16 +98,17 @@ const UI = {
     document.getElementById('dialog').classList.add('hidden');
     if (typeof this._chefStop === 'function') this._chefStop();
     if (this._convKey) { window.removeEventListener('keydown', this._convKey); this._convKey = null; }
-    this._conv = null;
+    if (this._conv) { Memories.endConversation(this._conv); this._conv = null; }
   },
 
   // ---------- conversazioni con i NPC ----------
   startConversation(ped) {
     this.dialogOpen = true;
-    this._conv = { ped, history: [] };
+    this._conv = { ped, history: [], mem: Memories.ensure(ped), moodShift: 0 };
     const moodKey = ped.state === 'flee' ? 'scared' : (ped.mood || 'neutral');
     const pool = ped.isAntonio ? Dialogue.openings.antonio : (Dialogue.openings[moodKey] || Dialogue.openings.neutral);
-    const opening = Dialogue.pickBag('open:' + moodKey, pool);
+    const callback = Memories.callbackLine(ped);
+    const opening = callback || Dialogue.pickBag('open:' + moodKey, pool);
     this._conv.history.push({ who: ped.name, text: opening });
     if (ped.isAntonio && !ped.gaveGift) {
       ped.gaveGift = true;
@@ -170,6 +171,8 @@ const UI = {
     if (!this._conv || this._conv.pending) return;
     const ped = this._conv.ped;
     this._conv.history.push({ who: 'Tu', text: line });
+    if (option && option.id) Memories.applyOption(this._conv, option.id);
+    else Memories.applyText(this._conv, line);
     let replyText = null, effect = null;
 
     if (AIChat.configured()) {
@@ -432,10 +435,13 @@ function playerAttack() {
 function updateInteractions() {
   const pl = Game.player;
   if (Input.hit('escape')) {
+    if (Phone.open) { Phone.close(); return; }
     if (UI.dialogOpen) { UI.closeDialog(); return; }
     togglePause();
     return;
   }
+
+  if (Input.hit('p') && !UI.dialogOpen && !pl.dead) Phone.toggle();
   if (UI.dialogOpen || pl.dead) return;
 
   if (Input.hit('f')) {
@@ -502,8 +508,8 @@ function updateHint() {
   const car = Systems.nearestCar(80);
   if (car) { UI.setHint('[F] Sali su: ' + car.label()); return; }
   const ped = Systems.nearestTalkablePed();
-  if (ped) { UI.setHint('[T] Parla con ' + ped.name); return; }
-  UI.setHint('');
+  if (ped) { UI.setHint('[T] Parla con ' + ped.name + ' · [P] Telefono'); return; }
+  UI.setHint('[P] Telefono');
 }
 
 // ---------- Rendering ----------
@@ -851,6 +857,7 @@ function startGame(save) {
   Game.paused = false;
   UI.updateHUD();
   UI.toast('Benvenuto a Città Temu, ' + custom.name + '!', 'good');
+  UI.toast('Premi P per lo smartphone: chiamate, SMS, Instagrim e browser.', '');
   UI.toast('Premi Esc per i comandi. Cerca i punti gialli sulle porte.', '');
 }
 
@@ -936,6 +943,10 @@ function loop(now) {
     updateHint();
   }
   if (Game.player) render();
+  if (Phone.open) {
+    document.getElementById('phone-clock').textContent = fmtTime(Game.timeMin);
+    document.getElementById('phone-money').textContent = fmtMoney(Game.player.money);
+  }
 }
 
 // ---------- Boot ----------
@@ -962,6 +973,7 @@ function boot() {
   document.getElementById('btn-help-close').onclick = () => document.getElementById('screen-help').classList.add('hidden');
   document.getElementById('btn-ai').onclick = () => { sfx('click'); UI.openAISettings(); };
   document.getElementById('btn-ai2').onclick = () => { sfx('click'); UI.openAISettings(); };
+  document.getElementById('hud-phone').onclick = () => Phone.toggle();
   document.getElementById('btn-resume').onclick = () => togglePause();
   document.getElementById('btn-save').onclick = () => Systems.save();
   document.getElementById('btn-quit').onclick = () => {
@@ -973,6 +985,17 @@ function boot() {
     document.getElementById('screen-menu').classList.remove('hidden');
     refreshContinue();
   };
+
+  document.getElementById('phone').addEventListener('click', (e) => {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    if (el.dataset.action === 'home') {
+      if (Phone.app === 'home' && !Phone.calling) Phone.close();
+      else { Phone.app = 'home'; Phone.thread = null; Phone.site = null; Phone.photo = null; Phone.calling = null; Phone.render(); }
+      return;
+    }
+    Phone.handleAction(el.dataset.action, el);
+  });
 
   if (Systems.hasSave()) document.getElementById('btn-continue').classList.remove('hidden');
 
