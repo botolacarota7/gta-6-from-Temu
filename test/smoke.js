@@ -104,7 +104,7 @@ sandbox.window.document = documentStub;
 sandbox.globalThis = sandbox;
 
 vm.createContext(sandbox);
-const files = ['js/config.js', 'js/utils.js', 'js/input.js', 'js/world.js', 'js/entities.js', 'js/systems.js', 'js/main.js'];
+const files = ['js/config.js', 'js/utils.js', 'js/input.js', 'js/world.js', 'js/entities.js', 'js/dialogue.js', 'js/systems.js', 'js/main.js'];
 for (const f of files) {
   const code = fs.readFileSync(f, 'utf8');
   vm.runInContext(code, sandbox, { filename: f });
@@ -120,7 +120,7 @@ function pumpFrames(n) {
 }
 
 // avvio: boot() è già girato; simula click su Nuova Partita + start
-vm.runInContext('this.__T = { Input, Game, Systems, Entities, World, UI, startGame };', sandbox);
+vm.runInContext('this.__T = { Input, Game, Systems, Entities, World, UI, Dialogue, startGame };', sandbox);
 const T = sandbox.__T;
 
 T.Input.keys.add('w');
@@ -189,5 +189,37 @@ const c2 = T.Entities.cars.find(c => c.state !== 'player');
 if (c2) { c2.damage(999); }
 pumpFrames(30);
 console.log('esplosione ok — wreck:', c2 ? c2.state : 'n/a');
+
+// fase conversazioni: Antonio + testi liberi + anti-ripetizione
+const AN = T.Entities.peds.find(x => x.isAntonio);
+console.log('antonio spawnato:', !!AN, AN && AN.name);
+if (AN) {
+  T.UI.startConversation(AN);
+  console.log('conversazione aperta — dialogOpen:', T.UI.dialogOpen);
+  const seen = [];
+  const inputs = ['ciao come va?', 'hai soldi per me?', 'dove compro una pistola?', 'qualcosa su GTA 6 da temu', 'e adesso che ore sono?', 'parliamo di pizza napoletana', 'dove trovo lavoro onesto?', 'che tempo fa oggi?', 'conosci la polizia di qui?', 'addio amico mio'];
+  for (const t of inputs) {
+    if (!T.UI.dialogOpen) T.UI.startConversation(AN);
+    if (AN.state === 'flee') { AN.state = 'walk'; AN.stateT = 0; }
+    T.UI.convRespond(t, null);
+    const last = T.UI._conv ? T.UI._conv.history[T.UI._conv.history.length - 1].text : '(chiusa)';
+    seen.push(last);
+  }
+  const uniq = new Set(seen);
+  console.log('risposte uniche:', uniq.size, '/', seen.length);
+  T.UI.closeDialog();
+}
+// conversazione con pedone qualunque + minaccia (teletrasporto vicino a un pedone)
+const ped = T.Entities.peds.find(x => !x.isAntonio && x.state === 'walk');
+if (ped) {
+  T.Game.player.x = ped.x + 30; T.Game.player.y = ped.y;
+  T.UI.startConversation(ped);
+  T.UI.convRespond('dammi i soldi o faccio un male', null);
+  console.log('minaccia ok — dialogOpen:', T.UI.dialogOpen, 'pickup a terra:', T.Entities.pickups.length > 0);
+  T.UI.closeDialog();
+}
+// indicazioni stradali -> marker verde
+T.Dialogue.sideEffects(ped || AN, 'directions');
+console.log('marker indicazioni:', !!T.Systems.tempObjective);
 
 console.log('SMOKE TEST PASSATO');

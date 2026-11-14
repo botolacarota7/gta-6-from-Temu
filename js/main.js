@@ -57,6 +57,10 @@ Player.prototype.damage = function (dmg, from) {
   UI.updateHUD();
 };
 
+function escHtml(t) {
+  return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // ---------- UI ----------
 const UI = {
   dialogOpen: false,
@@ -93,6 +97,88 @@ const UI = {
     this.dialogOpen = false;
     document.getElementById('dialog').classList.add('hidden');
     if (typeof this._chefStop === 'function') this._chefStop();
+    if (this._convKey) { window.removeEventListener('keydown', this._convKey); this._convKey = null; }
+    this._conv = null;
+  },
+
+  // ---------- conversazioni con i NPC ----------
+  startConversation(ped) {
+    this.dialogOpen = true;
+    this._conv = { ped, history: [] };
+    const moodKey = ped.state === 'flee' ? 'scared' : (ped.mood || 'neutral');
+    const pool = ped.isAntonio ? Dialogue.openings.antonio : (Dialogue.openings[moodKey] || Dialogue.openings.neutral);
+    const opening = Dialogue.pickBag('open:' + moodKey, pool);
+    this._conv.history.push({ who: ped.name, text: opening });
+    if (ped.isAntonio && !ped.gaveGift) {
+      ped.gaveGift = true;
+      Game.player.money += 20;
+      this._conv.history.push({ who: 'Antonio', text: 'Tieni: 20 euro di benvenuto. Da me non si esite a mani vuote... anzi, tu sì. Vabbè.' });
+      this.toast('+ $20 di benvenuto da Antonio', 'money');
+      this.updateHUD();
+    }
+    if (ped.state === 'walk') { ped.state = 'react'; ped.stateT = 9999; }
+    this._convKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); this.closeDialog(); }
+    };
+    window.addEventListener('keydown', this._convKey);
+    this.renderConv();
+  },
+
+  renderConv() {
+    const ped = this._conv.ped;
+    this.dialogOpen = true;
+    document.getElementById('dialog').classList.remove('hidden');
+    document.getElementById('dialog-title').textContent = 'Conversazione — ' + ped.name + (ped.mood === 'grumpy' ? ' (di cattivo umore)' : ped.mood === 'friendly' ? ' (di buon umore)' : ped.mood === 'gangster' ? ' (della gang)' : ped.state === 'flee' ? ' (terrorizzato)' : '');
+    const hist = this._conv.history.slice(-8).map((h) =>
+      '<div class="conv-line' + (h.who === 'Tu' ? ' me' : '') + '"><b>' + escHtml(h.who) + ':</b> ' + escHtml(h.text) + '</div>'
+    ).join('');
+    document.getElementById('dialog-body').innerHTML =
+      '<div id="conv-history">' + hist + '</div>' +
+      '<div class="conv-input-row">' +
+      '<input id="conv-input" type="text" maxlength="120" placeholder="Scrivi quello che vuoi dire...">' +
+      '<button id="conv-send" class="btn conv-send">Parla</button></div>';
+    const btns = document.getElementById('dialog-buttons');
+    btns.innerHTML = '';
+    for (const o of Dialogue.options(ped)) {
+      const el = document.createElement('button');
+      el.className = 'btn' + (o.danger ? ' btn-danger' : '');
+      el.textContent = o.label;
+      el.onclick = () => { sfx('click'); this.convRespond(o.line, o); };
+      btns.appendChild(el);
+    }
+    const input = document.getElementById('conv-input');
+    document.getElementById('conv-send').onclick = () => {
+      const v = input.value.trim();
+      if (v) this.convRespond(v, null);
+    };
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') { e.preventDefault(); this.closeDialog(); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const v = input.value.trim();
+        if (v) this.convRespond(v, null);
+      }
+    });
+    setTimeout(() => { try { input.focus(); } catch (e) {} }, 0);
+    const h = document.getElementById('conv-history');
+    h.scrollTop = h.scrollHeight;
+  },
+
+  convRespond(line, option) {
+    const ped = this._conv.ped;
+    this._conv.history.push({ who: 'Tu', text: line });
+    const r = Dialogue.reply(ped, line);
+    this._conv.history.push({ who: ped.name, text: r.text });
+    ped.say(r.text.length > 55 ? r.text.slice(0, 52) + '...' : r.text);
+    if (option && option.exit) { this.closeDialog(); return; }
+    if (r.effect === 'flee' || r.effect === 'rob') {
+      this.toast(ped.name + ' se ne va di corsa!', r.effect === 'rob' ? 'money' : 'bad');
+      this.closeDialog();
+      return;
+    }
+    if (r.effect === 'marker') this.toast('Indicazione ricevuta: guarda il marcatore verde.', 'good');
+    this.renderConv();
   },
 
   setHint(text) { document.getElementById('hud-hint').textContent = text || ''; },
@@ -269,6 +355,8 @@ function updateInteractions() {
     if (door) Systems.interactDoor(door);
   }
 
+  if (Input.hit('t')) Systems.talkToNearestPed();
+
   // cambio arma
   for (let i = 0; i < WEAPON_ORDER.length; i++) {
     if (Input.hit(String(i + 1))) {
@@ -316,6 +404,8 @@ function updateHint() {
   if (door) { UI.setHint('[E] ' + door.label); return; }
   const car = Systems.nearestCar(80);
   if (car) { UI.setHint('[F] Sali su: ' + car.label()); return; }
+  const ped = Systems.nearestTalkablePed();
+  if (ped) { UI.setHint('[T] Parla con ' + ped.name); return; }
   UI.setHint('');
 }
 
@@ -378,6 +468,20 @@ function render() {
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(x, y, pulse, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(x, y, pulse * 0.55, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // marker verde: indicazioni ricevute in conversazione
+  if (Systems.tempObjective) {
+    const t = Systems.tempObjective;
+    const x = t.x - camX, y = t.y - camY;
+    const pulse = 14 + Math.sin(Game.elapsed * 7) * 4;
+    ctx.strokeStyle = '#69f069';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, pulse, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#69f069';
+    ctx.font = 'bold 13px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(t.label, x, y - pulse - 8);
   }
 
   // auto
@@ -559,6 +663,10 @@ function drawMinimap() {
     m.fillStyle = '#ffd23f';
     m.beginPath(); m.arc(job.objective.x * s, job.objective.y * s, 4, 0, Math.PI * 2); m.fill();
   }
+  if (Systems.tempObjective && blink) {
+    m.fillStyle = '#69f069';
+    m.beginPath(); m.arc(Systems.tempObjective.x * s, Systems.tempObjective.y * s, 3.5, 0, Math.PI * 2); m.fill();
+  }
   m.fillStyle = '#4fc3f7';
   for (const c of Entities.cops) { m.beginPath(); m.arc(c.x * s, c.y * s, 2, 0, Math.PI * 2); m.fill(); }
   m.fillStyle = '#7dd87d';
@@ -637,6 +745,7 @@ function startGame(save) {
   }
 
   // popolazione iniziale
+  Systems.spawnAntonio();
   for (let i = 0; i < 30; i++) Systems.spawnPedNear(Game.player);
   for (let i = 0; i < 8; i++) Systems.spawnTrafficCar(Game.player);
   for (let i = 0; i < 6; i++) Systems.spawnParkedCar(Game.player);

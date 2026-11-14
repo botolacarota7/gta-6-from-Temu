@@ -177,3 +177,22 @@ html, body {
   background: #000; opacity: 0; pointer-events: none;
   transition: opacity .5s;
 }
+
+/* ---------- Conversazioni ---------- */
+#conv-history {
+  max-height: 180px; overflow-y: auto;
+  background: rgba(0,0,0,.35); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+}
+.conv-line { font-size: 14px; line-height: 1.5; margin-bottom: 8px; color: #e8e8e8; }
+.conv-line b { color: #ffd23f; }
+.conv-line.me b { color: #63b1f2; }
+.conv-line.me { color: #cfe3f7; }
+.conv-input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.conv-input-row input {
+  flex: 1; padding: 9px 12px; font-size: 14px;
+  background: #101018; color: #fff;
+  border: 1px solid rgba(255,255,255,.25); border-radius: 6px;
+}
+.conv-send { width: auto !important; margin: 0 !important; padding: 9px 18px !important; }
