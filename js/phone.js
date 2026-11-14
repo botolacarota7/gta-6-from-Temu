@@ -6,6 +6,7 @@ const Phone = {
   site: null,
   photo: null,
   calling: null,
+  aiNews: { items: [], loading: false, stamp: -9999, error: null },
 
   contacts: [
     { id: 'antonio', name: 'Antonio', icon: '🕴️', persona: 'Sei ANTONIO, informatore chiacchierone e filosofo urbano di GTA VI: Temu Edition. Adori la pizza di Gino e fai battute su GTA 6 e Temu. Il giocatore è tuo amico.' },
@@ -79,6 +80,7 @@ const Phone = {
     const clock = fmtTime(Game.timeMin);
     document.getElementById('phone-clock').textContent = clock;
     document.getElementById('phone-money').textContent = fmtMoney(Game.player ? Game.player.money : 0);
+    screen.classList.toggle('on-home', !this.calling && this.app === 'home');
 
     if (this.calling) { this.renderCall(screen); return; }
     switch (this.app) {
@@ -97,16 +99,29 @@ const Phone = {
   },
 
   renderHome(screen) {
+    const day = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'][new Date().getDay()];
     const apps = [
-      ['calls', '📞', 'Chiamate'], ['sms', '💬', 'Messaggi'],
-      ['camera', '📷', 'Fotocamera'], ['insta', '🖼️', 'Instagrim'],
-      ['browser', '🌐', 'Browser'], ['more', '⚙️', 'Extra'],
+      ['calls', '📞', 'Telefono', 'ic-green'], ['sms', '💬', 'Messaggi', 'ic-blue'],
+      ['camera', '📷', 'Fotocamera', 'ic-slate'], ['insta', '🖼️', 'Instagrim', 'ic-pink'],
+      ['browser', '🌐', 'Browser', 'ic-cyan'], ['site', '📰', 'Cronache', 'ic-red', 'cronache'],
+      ['site', '🛒', 'temU', 'ic-orange', 'temu'], ['more', '⚙️', 'Extra', 'ic-gray'],
     ];
+    const dock = [
+      ['calls', '📞', 'ic-green'], ['sms', '💬', 'ic-blue'],
+      ['browser', '🌐', 'ic-cyan'], ['insta', '🖼️', 'ic-pink'],
+    ];
+    const tile = (a) => a[0] === 'site'
+      ? '<button class="ph-app ' + a[3] + '" data-action="appsite" data-site="' + a[4] + '"><span>' + a[1] + '</span><label>' + a[2] + '</label></button>'
+      : '<button class="ph-app ' + a[3] + '" data-action="app" data-app="' + a[0] + '"><span>' + a[1] + '</span><label>' + a[2] + '</label></button>';
     screen.innerHTML = '<div class="ph-home">' +
-      '<div class="ph-profile">' + escHtml(Game.player.custom.name) + '<br><small>' + this.followers + ' follower · ' + this.posts.length + ' post</small></div>' +
-      '<div class="ph-grid">' + apps.map((a) =>
-        '<button class="ph-app" data-action="app" data-app="' + a[0] + '"><span>' + a[1] + '</span>' + a[2] + '</button>'
-      ).join('') + '</div></div>';
+      '<div class="ph-clockw"><div class="ph-clock-big">' + fmtTime(Game.timeMin) + '</div>' +
+      '<div class="ph-clock-sub">' + day + ' · Città Temu</div></div>' +
+      '<div class="ph-grid">' + apps.map(tile).join('') + '</div>' +
+      '<div class="ph-dock">' + dock.map((a) =>
+        '<button class="ph-app ' + a[2] + ' docked" data-action="app" data-app="' + a[0] + '"><span>' + a[1] + '</span></button>'
+      ).join('') + '</div>' +
+      '<div class="ph-widget">' + escHtml(Game.player.custom.name) + ' · ' + this.followers + ' follower · ' + this.posts.length + ' post</div>' +
+      '</div>';
   },
 
   renderCalls(screen) {
@@ -408,18 +423,19 @@ const Phone = {
           '<p class="ph-tip">Nel frattempo c\'è GTA 6 da Temu. Costa 4 euro. Hai già il controller in mano, in un certo senso.</p>';
       },
     },
-    news: {
+    cronache: {
       title: 'cronache-temu.local',
       render() {
         const pl = Game.player;
         const items = [];
-        if (pl.wanted > 0) items.push('🚨 RICERCATO: "' + pl.custom.name + '" con ' + pl.wanted + ' stelle. La polizia "ci sta lavorando" (sta pranzando).');
-        else items.push('✅ Città tranquilla. Nessun ricercato. Per ora.');
-        if (pl.gangRep >= 3) items.push('🕶️ Los Pepes: "Il nostro ' + escHtml(pl.custom.name) + ' è leggenda". Il boss annuisce.');
-        if (pl.money > 8000) items.push('💰 Un cittadino è stato visto con ' + fmtMoney(pl.money) + '. Le banche negano tutto.');
-        if (pl.money < 100) items.push('📉 Economia in crisi: un residente ha meno di 100 euro. "Ho comprato troppa pizza", dichiara.');
-        items.push('🍕 Da Gino file d\'attesa record: "La margherita è un diritto umano", dice un cliente in lacrime.');
-        return '<h2>📰 Cronache di Temu</h2>' + items.map((i) => '<div class="ph-item">' + i + '</div>').join('');
+        if (pl.wanted > 0) items.push(['🚨 RICERCATO', '"' + escHtml(pl.custom.name) + '" visto con ' + pl.wanted + ' stelle. La polizia "ci sta lavorando" (sta pranzando).']);
+        else items.push(['✅ Città tranquilla', 'Nessun ricercato al momento. I cronisti si annoiano e parlano di meteo.']);
+        if (pl.gangRep >= 3) items.push(['🕶️ Los Pepes in ascesa', 'Il boss annuisce: "Il nostro ' + escHtml(pl.custom.name) + ' è legenda". Il pizzo, dice, è un abbonamento.']);
+        if (pl.money > 8000) items.push(['💰 Record di liquidità', 'Un cittadino è stato visto con ' + fmtMoney(pl.money) + '. Le banche negano tutto, il portafoglio non commenta.']);
+        if (pl.money < 100) items.push(['📉 Crisi personale', 'Un residente ha meno di ' + fmtMoney(100) + ': "Ho comprato troppa pizza", dichiara in lacrime.']);
+        items.push(['🍕 Da Gino file record', '"La margherita è un diritto umano", dice un cliente in coda da tre ore. Gino: "Il forno non negozia."']);
+        items.push(['🚗 Concessionaria Temu', 'Nuovo modello "Ferrari ma no" in arrivo: 0–100 in un tempo non specificato.']);
+        return '<h2>📰 Cronache di Temu</h2>' + items.map((it) => '<div class="ph-article"><h3>' + it[0] + '</h3><p>' + it[1] + '</p></div>').join('');
       },
     },
     gino: {
@@ -441,21 +457,176 @@ const Phone = {
           '<button class="ph-mini" data-action="goto-base">📍 Segna la base sulla mappa</button>';
       },
     },
+    temupedia: {
+      title: 'temupedia.org — enciclopedia libera (dubbia)',
+      render() {
+        return '<h2>🗜️ Temupedia</h2>' +
+          '<div class="ph-article"><h3>Città Temu</h3><p>Metropoli dal budget discutibile: strade ogni 14 isolati, edifici tutti uguali e un profumo di sconto che si sente da satellite. Popolazione: tanti, più o meno gli stessi che girano in tondo.</p></div>' +
+          '<div class="ph-article"><h3>Antonio (personaggio)</h3><p>Informatore, filosofo urbano e probabilmente il NPC più amato della storia dei videogiochi. Non despawna mai: la leggenda dice che il motore di gioco abbia paura di lui. Ama la pizza di Gino e odia il silenzio.</p></div>' +
+          '<div class="ph-article"><h3>Los Pepes (organizzazione)</h3><p>Gang locale attiva nel settore immobiliare, nel pizzo e nei sorrisi. Il loro blog è sorprendentemente ben scritto. Requisiti d\'ingresso: rispetto. E basta.</p></div>' +
+          '<div class="ph-article"><h3>Pizza di Gino</h3><p>Bene di consumo e culturalmente protetto. L\'ananas è classificato come reato dalla locale cronaca. La margherita cura il cuore: metaforicamente. Quasi.</p></div>' +
+          '<div class="ph-article"><h3>GTA 6 (attesa)</h3><p>Fenomeno per il quale la popolazione attende dal 2013 un videogioco che, secondo fonti concorrenti, uscirà "domani™". Vedi anche: speranza, marketing.</p></div>';
+      },
+    },
+    forum: {
+      title: 'temu-forum.net — il buco nero dei dubbi',
+      render() {
+        const pl = Game.player;
+        const threads = [
+          ['😵 Come si ferma la polizia in questa città?', pl.wanted > 0 ? 'OP: chiedo per un amico. L\'amico ha ' + pl.wanted + ' stelle e sta correndo mentre scrivo.' : 'OP: chiedo per un amico. L\'amico ora è pulito, dicono.', '1,2k risposte'],
+          ['🍕 Meglio la margherita o la diavola? [THREAD SERIO]', 'Gino ha bannato chi vota ananas. Il mod dice: "È una questione di legge".', '890 risposte'],
+          ['💰 Si vive con ' + fmtMoney(pl.money) + ' a Città Temu?', '"Con meno di 100 euro si mangia solo sorpresa", risponde un utente bannato subito dopo.', '412 risposte'],
+          ['🕶️ Antonio esiste davvero o è un algoritmo?', '"Gli ho chiesto il senso della vita e mi ha segnato la pizzeria sulla mappa. 10/10".', '7,3k risposte'],
+          ['🚗 La mia auto è esplosa per la terza volta oggi', '"Normale. Qui le garanzie durano finché lo sguardo del venditore."', '256 risposte'],
+        ];
+        return '<h2>💬 temu-forum.net</h2>' + threads.map((t) =>
+          '<div class="ph-article"><h3>' + t[0] + '</h3><p>' + t[1] + '</p><p class="ph-tip">' + t[2] + '</p></div>'
+        ).join('');
+      },
+    },
+    sport: {
+      title: 'temusport.it',
+      render() {
+        const pl = Game.player;
+        const goals = randInt(0, 4);
+        return '<h2>⚽ Temu Sport</h2>' +
+          '<div class="ph-article"><h3>Real Temu ' + goals + ' — ' + randInt(0, 4) + ' Atletico Sconto</h3><p>Il rigore decisivo è stato assegnato "per errore del VAR, che è un ferro da stiro".</p></div>' +
+          '<div class="ph-article"><h3>Mercato: colpo da Temu</h3><p>Il Real Temu ingaggia un attaccante a ' + fmtMoney(4) + '. Spedizione in 6 settimane, debutto previsto tra due stagioni.</p></div>' +
+          (pl.ownedCars.length ? '<div class="ph-article"><h3>Motori</h3><p>' + escHtml(pl.custom.name) + ' possiede ' + pl.ownedCars.length + ' auto. Il meccanico locale ha chiesto il trasferimento.</p></div>' : '') +
+          '<div class="ph-article"><h3>Tennis</h3><p>Nessuno gioca a tennis a Città Temu, ma il sito ha una sezione e la sezione deve esistere.</p></div>';
+      },
+    },
+    astro: {
+      title: 'orroscopo-temu mystic',
+      render() {
+        const pl = Game.player;
+        const seed = pl.custom.name.length + new Date().getDate();
+        const segni = ['Ariete', 'Toro', 'Gemelli', 'Cancro', 'Leone', 'Vergine'];
+        const frasi = [
+          'Oggi evita l\'ananas: ti conviene, e Gino ti ringrazia.',
+          'Le stelle dicono: controlla i retrovisori. E il parcheggio. E tutto.',
+          'Fortuna in arrivo da un pacco consegnato in orario (evento rarissimo).',
+          'Amicizia in crescita: qualcuno ti deve un favore. Antonio, probabilmente.',
+          'Giornata perfetta per una pizza. Le stelle sono chiare, non fare la vittima.',
+          'Attenzione alle stelle di polizia: anche l\'astrologia le vede.',
+        ];
+        return '<h2>🔮 Orroscopo di Temu</h2><p class="ph-tip">Orologio astrale di ' + escHtml(pl.custom.name) + ' — affidabilità garantita al ' + (40 + (seed % 55)) + '%</p>' +
+          segni.map((s, i) => '<div class="ph-article"><h3>' + s + '</h3><p>' + frasi[(seed + i) % frasi.length] + '</p></div>').join('');
+      },
+    },
+    musica: {
+      title: 'Temu Music — Top 5',
+      render() {
+        return '<h2>🎵 Temu Music — Top 5</h2>' +
+          [
+            ['1', '"Margherita (feat. Gino)" — DJ Forno', '▲ 3 posizioni'],
+            ['2', '"Stelle (Wanted Mix)" — MC Sirena', '– invariato'],
+            ['3', '"Spedizione in 6 settimane" — temU Boys', '▲ 7 posizioni'],
+            ['4', '"Base dei Pepes (Slowed + Rispettato)" — Boss L.', '▼ 1 posizione'],
+            ['5', '"Domani™" — GTA6 & The Delays', '▲ 99 posizioni'],
+          ].map((r) => '<div class="ph-item"><span>' + r[0] + '. ' + r[1] + '</span><span class="ph-sub">' + r[2] + '</span></div>').join('') +
+          '<p class="ph-tip">Classifica basata su streaming, fischi e ordini di pizza.</p>';
+      },
+    },
+    ainews: {
+      title: 'cronache-ai.live — edizione generata in tempo reale',
+      render() { return ''; },
+    },
   },
 
   renderBrowserHome(screen) {
-    const sites = Object.entries(this.sites).map(([id, s]) =>
-      '<button class="ph-row" data-action="visit" data-id="' + id + '"><span class="ph-name">🌐 ' + s.title + '</span></button>'
-    ).join('');
-    screen.innerHTML = this.bar('Temu Explorer', true) + '<div class="ph-list">' + sites + '</div>';
+    const groups = [
+      ['📰 Notizie', ['cronache', 'ainews', 'sport']],
+      ['📚 Cultura e community', ['temupedia', 'forum', 'astro', 'musica']],
+      ['🛍️ Affari', ['temu', 'gino', 'pepes']],
+      ['🎮 Intrattenimento', ['gta6']],
+    ];
+    const rows = groups.map((g) => '<div class="ph-group">' + g[0] + '</div>' + g[1].map((id) => {
+      const s = this.sites[id];
+      if (!s) return '';
+      const badge = id === 'ainews' && AIChat.configured() ? '<span class="ph-badge-ai">LIVE AI</span>' : '';
+      return '<button class="ph-row" data-action="visit" data-id="' + id + '"><span class="ph-name">🌐 ' + s.title + ' ' + badge + '</span></button>';
+    }).join('')).join('');
+    screen.innerHTML = this.bar('Temu Explorer', true) + '<div class="ph-list">' + rows + '</div>';
   },
 
   renderSite(screen) {
+    if (this.site === 'ainews') { this.renderAiNews(screen); return; }
     const s = this.sites[this.site];
     screen.innerHTML = this.bar(s.title, true) + '<div class="ph-page">' + s.render() + '</div>';
   },
 
-  visit(id) { this.site = id; this.render(); },
+  renderAiNews(screen) {
+    const st = this.aiNews;
+    let body;
+    if (st.loading) body = '<div class="ph-empty">🖊️ I giornalisti AI stanno scrivendo la edizione di oggi...</div>';
+    else if (!st.items.length) body = '<div class="ph-empty">Nessun articolo in edicola.<br>Premi il bottone qui sotto!</div>';
+    else body = st.items.map((a) => '<div class="ph-article"><h3>' + escHtml(a.title) + '</h3><p>' + escHtml(a.body) + '</p></div>').join('');
+    screen.innerHTML = this.bar('Cronache AI — live', true) + '<div class="ph-page">' +
+      (st.error ? '<p class="ph-tip">' + escHtml(st.error) + '</p>' : '') + body +
+      '<button class="ph-mini ph-gen" data-action="gennews">🔄 Genera articoli freschi</button>' +
+      (AIChat.configured() ? '' : '<p class="ph-tip">Collega una AI dal menu Impostazioni AI per articoli scritti in tempo reale. Senza AI esce l\'edizione locale.</p>') +
+      '</div>';
+  },
+
+  localNews() {
+    const pl = Game.player;
+    const pool = [
+      ['Esclusiva: ' + escHtml(pl.custom.name) + ' avvistato/a in centro', 'I testimoni parlano di una "presenza decisa". Le autorità consigliano di non farsi domande.'],
+      ['Meteo: cielo a pezzi di pizza', 'Le previsioni annunciano parmigiano sparso e vento di forno. Affidabilità: totale.'],
+      ['La polizia sperimenta il "correre più veloce"', 'Il nuovo piano anti-inseguimento consiste nel correre più veloce. I risultati sono in attesa da 5 anni.'],
+      ['temU lancia il pacco che si consegna da solo', 'Purtroppo si consegna solo a se stesso, in un altro continente.'],
+      ['Antonio vince il premio "cittadino dell\'anno"', 'Per il dodicesimo anno consecutivo. Il discorso di ringraziamento è durato 4 ore ed era una sola battuta.'],
+      ['Gino apre la seconda pizzeria', 'Si chiama "Da Gino 2" ed è identica. "Se funziona, non si tocca", dichiara.'],
+      ['Borsa di Temu: il pacco vale più dell\'oro', 'Gli analisti consigliano di investire in calzini fantasma, in forte crescita.'],
+      ['Il boss dei Pepes lancia il podcast', 'Puntata 1: "Silenzio" (42 minuti di silenzio). Recensioni: 5 stelle.'],
+    ];
+    const used = new Set(this.aiNews.items.map((a) => a.title));
+    const fresh = pool.filter((a) => !used.has(a[0]));
+    const pick = (fresh.length >= 3 ? fresh : pool).slice();
+    const out = [];
+    while (out.length < 3 && pick.length) out.push(pick.splice(randInt(0, pick.length - 1), 1)[0]);
+    return out.map((a) => ({ title: a[0], body: a[1] }));
+  },
+
+  async genNews(force) {
+    const st = this.aiNews;
+    if (st.loading) return;
+    if (!force && st.items.length && Game.elapsed - st.stamp < 90) { this.render(); return; }
+    st.loading = true;
+    st.error = null;
+    if (this.open && this.app === 'browser' && this.site === 'ainews') this.render();
+    const pl = Game.player;
+    const prev = st.items.map((a) => '- ' + a.title).join('\n');
+    const sys = 'Sei la redazione di "Cronache AI", giornale satirico della città di "GTA VI: Temu Edition", videogioco open world comico. Scrivi articoli brevi, assurdi ma plausibili dentro il mondo di gioco, in italiano. Rispondi SOLO con JSON valido: [{"title": "...", "body": "..."}] con 3 articoli, titolo massimo 60 caratteri, corpo massimo 45 parole. Niente markdown, niente testo fuori dal JSON.';
+    const user = 'Ora in gioco: ' + fmtTime(Game.timeMin) + '. Giocatore: ' + pl.custom.name + ', ' + fmtMoney(pl.money) +
+      ', ricercato: ' + (pl.wanted > 0 ? pl.wanted + ' stelle' : 'no') + ', reputazione Los Pepes: ' + pl.gangRep +
+      ', follower Instagrim: ' + this.followers + '.\n' +
+      (prev ? 'Titoli GIÀ pubblicati, generarne di DIVERSI:\n' + prev : 'Nessun titolo precedente.');
+    try {
+      if (!AIChat.configured()) throw new Error('AI non configurata');
+      const raw = await AIChat.complete(sys, user, 600);
+      const m = raw.match(/\[[\s\S]*\]/);
+      if (!m) throw new Error('nessun JSON');
+      const arr = JSON.parse(m[0]);
+      const items = (Array.isArray(arr) ? arr : []).filter((a) => a && typeof a.title === 'string' && typeof a.body === 'string').slice(0, 4);
+      if (!items.length) throw new Error('JSON senza articoli');
+      st.items = items;
+      st.stamp = Game.elapsed;
+    } catch (e) {
+      st.items = this.localNews();
+      st.stamp = Game.elapsed;
+      st.error = AIChat.configured() ? 'AI non riuscita (' + (e && e.message ? e.message : 'errore') + '): edizione locale.' : null;
+    }
+    st.loading = false;
+    if (this.open && this.app === 'browser' && this.site === 'ainews') this.render();
+  },
+
+  visit(id) {
+    this.site = id;
+    this.render();
+    if (id === 'ainews') this.genNews(false);
+  },
 
   buyItem(item, price) {
     const pl = Game.player;
@@ -503,6 +674,8 @@ const Phone = {
       case 'discard': this.photo = null; this.render(); break;
       case 'like': this.likePost(parseInt(el.dataset.i, 10)); break;
       case 'visit': this.visit(el.dataset.id); break;
+      case 'appsite': this.app = 'browser'; this.thread = null; this.photo = null; this.visit(el.dataset.site); break;
+      case 'gennews': this.genNews(true); break;
       case 'buy': this.buyItem(el.dataset.item, parseInt(el.dataset.price, 10)); break;
       case 'order': this.orderPizza(); break;
       case 'goto-base': {

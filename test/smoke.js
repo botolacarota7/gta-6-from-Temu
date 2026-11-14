@@ -266,6 +266,15 @@ console.log('marker indicazioni:', !!T.Systems.tempObjective);
   T.Game.elapsed += 200;
   T.Phone.updateDelivery();
   console.log('consegna ricevuta:', !T.Phone.pendingDelivery);
+
+  for (const site of ['cronache', 'temupedia', 'forum', 'sport', 'astro', 'musica']) {
+    T.Phone.visit(site);
+  }
+  console.log('siti editoriali visitati senza errori: 6');
+
+  T.Phone.visit('ainews');
+  for (let i = 0; i < 50 && T.Phone.aiNews.loading; i++) pumpFrames(1);
+  console.log('cronache AI (fallback locale) — articoli:', T.Phone.aiNews.items.length, 'primo:', (T.Phone.aiNews.items[0] || {}).title);
   T.Phone.close();
 
   // memorie: due conversazioni con lo stesso pedone
@@ -293,5 +302,23 @@ console.log('marker indicazioni:', !!T.Systems.tempObjective);
   const last = T.UI._conv.history[T.UI._conv.history.length - 1];
   console.log('risposta AI:', last.who + ':', last.text.slice(0, 60));
   T.UI.closeDialog();
+
+  // cronache AI con articoli generati dall'AI (fetch simulato con JSON)
+  const oldFetch = sandbox.fetch;
+  sandbox.fetch = async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: 'Ecco gli articoli: [{"title":"Scooter volante avvistato sul tetto","body":"I tecnici parlano di un bug della fisica. Il sindaco promette una commissione."},{"title":"Gino vince il Nobel per la pizza","body":"Comitato: non esiste il Nobel per la pizza, ma a questo punto lo inventiamo."},{"title":"La polizia compra le scarpe nuove","body":"Dicono servano per correre pi\u00f9 veloce. Il mercato scommette sul contrario."}]' } }] }),
+  });
+  T.Phone.toggle();
+  T.Phone.aiNews = { items: [], loading: false, stamp: -9999, error: null };
+  T.Phone.app = 'browser'; T.Phone.site = 'ainews';
+  await T.Phone.genNews(true);
+  pumpFrames(3);
+  console.log('cronache AI (generata) — articoli:', T.Phone.aiNews.items.length, 'errore:', T.Phone.aiNews.error, 'primo:', (T.Phone.aiNews.items[0] || {}).title);
+  T.Game.elapsed += 200;
+  await T.Phone.genNews(true);
+  console.log('rigenerazione — articoli:', T.Phone.aiNews.items.length, 'titoli unici:', new Set(T.Phone.aiNews.items.map(a => a.title)).size, 'primo:', (T.Phone.aiNews.items[0] || {}).title);
+  T.Phone.close();
+  sandbox.fetch = oldFetch;
   console.log('SMOKE TEST PASSATO (AI inclusa)');
 })().catch((e) => { console.error('FALLITO:', e); process.exit(1); });
