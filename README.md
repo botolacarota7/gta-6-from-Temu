@@ -15,6 +15,7 @@ Basta aprire `index.html` nel browser (doppio click), oppure pubblicare il repo 
 | Mouse | Mira |
 | Click sinistro | Attacca / Spara |
 | E | Interagisci (porte, obiettivi) |
+| T | Parla con il passante più vicino |
 | F | Entra / Esci dal veicolo |
 | 1-5 / Rotellina | Cambia arma |
 | Esc | Pausa |
@@ -44,6 +45,8 @@ js/utils.js       helper matematici
 js/input.js       tastiera e mouse
 js/world.js       generazione città e terreno pre-renderizzato
 js/entities.js    giocatore, pedoni, poliziotti, auto, proiettili
+js/dialogue.js    motore di dialogo: personalità, argomenti, anti-ripetizione
+js/ai.js          collegamento API AI (Mistral/OpenAI/Groq/OpenRouter/custom), chiave solo in localStorage
 js/systems.js     traffico, folla, polizia, lavori, negozi, salvataggio
 js/main.js        loop, rendering, UI, personalizzazione
 test/smoke.js     smoke test headless (node test/smoke.js)

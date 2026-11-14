@@ -14,7 +14,9 @@ const Systems = {
       const p = Entities.peds[i];
       p.update(dt, pl);
       const d = dist(p.x, p.y, pl.x, pl.y);
-      if (d > 1500 && p.gang !== 'rival') Entities.peds.splice(i, 1);
+      if (p.isAntonio) {
+        if (d > 2200) { p.x = pl.x + rand(-400, 400); p.y = pl.y + rand(-400, 400); }
+      } else if (d > 1500 && p.gang !== 'rival') Entities.peds.splice(i, 1);
       else if (p.state === 'dead') Entities.peds.splice(i, 1);
     }
     const wantPeds = 32;
@@ -66,6 +68,47 @@ const Systems = {
           Entities.peds.push(p);
         }
       } else if (!near) this.gangPedsSpawned = false;
+    }
+
+    // Antonio ti fermA quando passi
+    this.antonioCd = Math.max(0, (this.antonioCd || 0) - dt);
+    const antonio = Entities.peds.find((p) => p.isAntonio && p.state !== 'dead');
+    if (antonio && !UI.dialogOpen && !pl.inCar && !pl.dead && this.antonioCd <= 0 && dist(antonio.x, antonio.y, pl.x, pl.y) < 90) {
+      this.antonioCd = 45;
+      UI.startConversation(antonio);
+    }
+
+    // battute ambientali contestuali
+    this.ambientT = Math.max(0, (this.ambientT || 0) - dt);
+    if (this.ambientT <= 0 && Entities.peds.length) {
+      this.ambientT = rand(4, 8);
+      const near = Entities.peds.filter((p) => p.state === 'walk' && dist(p.x, p.y, pl.x, pl.y) < 350);
+      if (near.length) {
+        const p = choice(near);
+        const hour = Game.timeMin / 60;
+        let pool = Dialogue.ambient.idle;
+        if (pl.wanted > 0) pool = Dialogue.ambient.wanted;
+        else if (hour > 20.5 || hour < 6) pool = Dialogue.ambient.night;
+        else if (pl.money > 8000 && Math.random() < 0.6) pool = Dialogue.ambient.rich;
+        else if (WEAPONS[pl.curWeapon].bullet && Math.random() < 0.6) pool = Dialogue.ambient.gun;
+        p.say(choice(pool));
+      }
+      // chiacchiere tra pedoni
+      if (Entities.peds.length > 4 && Math.random() < 0.5) {
+        const a = choice(Entities.peds.filter((p) => p.state === 'walk'));
+        const b = Entities.peds.filter((p) => p !== a && p.state === 'walk' && dist(p.x, p.y, a.x, a.y) < 160);
+        if (b.length) {
+          const pair = choice(Dialogue.pairChatter);
+          a.say(pair[0]);
+          b[0].pendingSay = { text: pair[1], t: 1.6 };
+        }
+      }
+    }
+
+    // marker temporaneo dalle indicazioni stradali
+    if (this.tempObjective) {
+      this.tempObjective.t -= dt;
+      if (this.tempObjective.t <= 0) this.tempObjective = null;
     }
 
     // poliziotti
@@ -244,6 +287,33 @@ const Systems = {
     pl.x = car.x + Math.cos(car.angle + Math.PI / 2) * 34;
     pl.y = car.y + Math.sin(car.angle + Math.PI / 2) * 34;
     pl.collide();
+  },
+
+  nearestTalkablePed() {
+    const pl = Game.player;
+    let best = null, bd = 70;
+    for (const p of Entities.peds) {
+      if (p.state === 'dead' || p.gang === 'rival') continue;
+      const d = dist(pl.x, pl.y, p.x, p.y);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  },
+
+  talkToNearestPed() {
+    const best = this.nearestTalkablePed();
+    if (best) UI.startConversation(best);
+    else UI.toast('Non c\u00e8 nessuno abbastanza vicino per parlare.', 'bad');
+  },
+
+  spawnAntonio() {
+    const pizzeria = World.doors.find((d) => d.type === 'pizzeria');
+    const antonio = new Ped(pizzeria.x + 80, pizzeria.y + 140, {
+      name: 'Antonio', isAntonio: true, mood: 'friendly', shirt: '#2a9d8f',
+    });
+    antonio.hp = 120;
+    Entities.peds.push(antonio);
+    return antonio;
   },
 
   // ---------- morte giocatore ----------
@@ -447,7 +517,8 @@ const Systems = {
       disabled: pl.armor >= 100 || pl.money < ARMOR_PRICE,
       action: () => { pl.money -= ARMOR_PRICE; pl.armor = 100; UI.toast('Ora sei un grugnito inarmaturato.', 'good'); UI.updateHUD(); this.openGunShop(); },
     });
-    rows.push('Benvenuto all\'Ammu-Nazione. (Ricordiamo che il negozio non è responsabile per uso creativo dei prodotti.)');
+    rows.push(choice(Dialogue.shopGreetings.gunshop));
+    rows.push('(Il negozio non è responsabile per uso creativo dei prodotti.)');
     UI.dialog('Ammu-Nazione', rows.join('\n'), buttons);
   },
 
@@ -489,7 +560,7 @@ const Systems = {
         },
       });
     }
-    UI.dialog('Concessionaria Temu', 'Macchine "originali" a prezzi sospettosamente bassi.', buttons);
+    UI.dialog('Concessionaria Temu', choice(Dialogue.shopGreetings.dealer) + '\nAuto "originali" a prezzi sospettosamente bassi.', buttons);
   },
 
   openPolice() {
@@ -522,12 +593,12 @@ const Systems = {
       { label: 'Consegna una pizza', sub: 'fino a ' + fmtMoney(110), disabled: !!job, action: () => this.startPizzaJob() },
       { label: 'Esci', action: () => UI.closeDialog() },
     ];
-    UI.dialog('Pizzeria "Da Gino"', 'Gino: "Il forno è caldo e le pizze pure. Portale ai clienti prima che si raffreddino!"', buttons);
+    UI.dialog('Pizzeria "Da Gino"', choice(Dialogue.shopGreetings.pizzeria) + '\nGino: "Il forno è caldo e le pizze pure. Portale ai clienti prima che si raffreddino!"', buttons);
   },
 
   openRestaurant() {
     const job = this.activeJob;
-    UI.dialog('Ristorante "Bella Napoli"', 'Il capocuoco ti guarda con speranza.', [
+    UI.dialog('Ristorante "Bella Napoli"', choice(Dialogue.shopGreetings.restaurant), [
       { label: 'Lavora come Chef', sub: 'minigioco, fino a ' + fmtMoney(90), disabled: !!job, action: () => { UI.closeDialog(); UI.startChefMinigame(); } },
       { label: 'Lavora come Cameriere', sub: '3 ordini, ' + fmtMoney(75), disabled: !!job, action: () => this.startWaiterJob() },
       { label: 'Esci', action: () => UI.closeDialog() },

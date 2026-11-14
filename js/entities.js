@@ -148,6 +148,11 @@ class Ped {
     this.target = null;
     this.dropMoney = randInt(5, 40);
     this.radius = 11;
+    this.name = opts.name || choice(PED_NAMES);
+    this.isAntonio = !!opts.isAntonio;
+    this.mood = opts.mood || choice(['friendly', 'neutral', 'neutral', 'grumpy', 'gangster']);
+    this.gaveMoney = false;
+    this.pendingSay = null;
   }
 
   say(text, t = 2.6) { this.bubble = text; this.bubbleT = t; }
@@ -156,6 +161,10 @@ class Ped {
     if (this.state === 'dead') return;
     this.stateT -= dt;
     if (this.bubbleT > 0) { this.bubbleT -= dt; if (this.bubbleT <= 0) this.bubble = null; }
+    if (this.pendingSay) {
+      this.pendingSay.t -= dt;
+      if (this.pendingSay.t <= 0) { this.say(this.pendingSay.text); this.pendingSay = null; }
+    }
 
     if (this.state === 'flee') {
       this.runFrom(this.fleeFrom, dt, 135);

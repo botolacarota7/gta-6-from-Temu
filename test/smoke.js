@@ -95,7 +95,14 @@ const sandbox = {
   requestAnimationFrame: (fn) => { rafQueue.push(fn); return rafQueue.length; },
   cancelAnimationFrame: () => {},
   setInterval: () => 0,
-  setTimeout: (fn) => 0,
+  _timers: [],
+  setTimeout: (fn, ms) => { sandbox._timers.push(fn); return sandbox._timers.length; },
+  clearTimeout: () => {},
+  AbortController: typeof AbortController !== 'undefined' ? AbortController : class { constructor() { this.signal = {}; } abort() {} },
+  fetch: async (url, opts) => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: 'Ehh, amico mio, qui la pizza si mangia e i soldi si contano!' } }] }),
+  }),
   localStorage: { _d: {}, getItem(k) { return this._d[k] || null; }, setItem(k, v) { this._d[k] = v; }, removeItem(k) { delete this._d[k]; } },
   Math, JSON, Date, Set, String, Number, Array, Object, Infinity, isNaN, parseInt, parseFloat,
   Uint8ClampedArray,
@@ -104,7 +111,7 @@ sandbox.window.document = documentStub;
 sandbox.globalThis = sandbox;
 
 vm.createContext(sandbox);
-const files = ['js/config.js', 'js/utils.js', 'js/input.js', 'js/world.js', 'js/entities.js', 'js/systems.js', 'js/main.js'];
+const files = ['js/config.js', 'js/utils.js', 'js/input.js', 'js/world.js', 'js/entities.js', 'js/dialogue.js', 'js/ai.js', 'js/systems.js', 'js/main.js'];
 for (const f of files) {
   const code = fs.readFileSync(f, 'utf8');
   vm.runInContext(code, sandbox, { filename: f });
@@ -120,7 +127,7 @@ function pumpFrames(n) {
 }
 
 // avvio: boot() è già girato; simula click su Nuova Partita + start
-vm.runInContext('this.__T = { Input, Game, Systems, Entities, World, UI, startGame };', sandbox);
+vm.runInContext('this.__T = { Input, Game, Systems, Entities, World, UI, Dialogue, AIChat, startGame };', sandbox);
 const T = sandbox.__T;
 
 T.Input.keys.add('w');
@@ -190,4 +197,50 @@ if (c2) { c2.damage(999); }
 pumpFrames(30);
 console.log('esplosione ok — wreck:', c2 ? c2.state : 'n/a');
 
-console.log('SMOKE TEST PASSATO');
+// fase conversazioni: Antonio + testi liberi + anti-ripetizione
+const AN = T.Entities.peds.find(x => x.isAntonio);
+console.log('antonio spawnato:', !!AN, AN && AN.name);
+if (AN) {
+  T.UI.startConversation(AN);
+  console.log('conversazione aperta — dialogOpen:', T.UI.dialogOpen);
+  const seen = [];
+  const inputs = ['ciao come va?', 'hai soldi per me?', 'dove compro una pistola?', 'qualcosa su GTA 6 da temu', 'e adesso che ore sono?', 'parliamo di pizza napoletana', 'dove trovo lavoro onesto?', 'che tempo fa oggi?', 'conosci la polizia di qui?', 'addio amico mio'];
+  for (const t of inputs) {
+    if (!T.UI.dialogOpen) T.UI.startConversation(AN);
+    if (AN.state === 'flee') { AN.state = 'walk'; AN.stateT = 0; }
+    T.UI.convRespond(t, null);
+    const last = T.UI._conv ? T.UI._conv.history[T.UI._conv.history.length - 1].text : '(chiusa)';
+    seen.push(last);
+  }
+  const uniq = new Set(seen);
+  console.log('risposte uniche:', uniq.size, '/', seen.length);
+  T.UI.closeDialog();
+}
+// conversazione con pedone qualunque + minaccia (teletrasporto vicino a un pedone)
+const ped = T.Entities.peds.find(x => !x.isAntonio && x.state === 'walk');
+if (ped) {
+  T.Game.player.x = ped.x + 30; T.Game.player.y = ped.y;
+  T.UI.startConversation(ped);
+  T.UI.convRespond('dammi i soldi o faccio un male', null);
+  console.log('minaccia ok — dialogOpen:', T.UI.dialogOpen, 'pickup a terra:', T.Entities.pickups.length > 0);
+  T.UI.closeDialog();
+}
+// indicazioni stradali -> marker verde
+T.Dialogue.sideEffects(ped || AN, 'directions');
+console.log('marker indicazioni:', !!T.Systems.tempObjective);
+
+// fase AI: conversazione con API simulata
+(async () => {
+  const A = T.AIChat;
+  A.settings.enabled = true;
+  A.settings.provider = 'mistral';
+  A.settings.apiKey = 'test-key-123';
+  console.log('AI configurata:', A.configured(), '— endpoint:', A.endpoint());
+  const an2 = T.Entities.peds.find(x => x.isAntonio);
+  T.UI.startConversation(an2);
+  await T.UI.convRespond('ciao Antonio, raccontami la città', null);
+  const last = T.UI._conv.history[T.UI._conv.history.length - 1];
+  console.log('risposta AI:', last.who + ':', last.text.slice(0, 60));
+  T.UI.closeDialog();
+  console.log('SMOKE TEST PASSATO (AI inclusa)');
+})().catch((e) => { console.error('FALLITO:', e); process.exit(1); });
