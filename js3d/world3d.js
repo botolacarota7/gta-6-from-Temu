@@ -179,26 +179,74 @@ const World3 = {
   // ---------- mesh personaggi ----------
   buildPersonMesh(o) {
     const g = new THREE.Group();
-    const mk = (w, h, d, color, x, y, z) => {
+    const mk = (w, h, d, color, x, y, z, parent) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), this.lambertMat(color));
       m.position.set(x, y, z);
       m.castShadow = true;
-      g.add(m);
+      (parent || g).add(m);
       return m;
     };
-    const legL = mk(0.22, 0.8, 0.24, o.pants, -0.14, 0.4, 0);
-    const legR = mk(0.22, 0.8, 0.24, o.pants, 0.14, 0.4, 0);
-    const body = mk(0.5, 0.6, 0.3, o.shirt, 0, 1.1, 0);
-    const armL = mk(0.14, 0.55, 0.16, o.skin, -0.34, 1.15, 0);
-    const armR = mk(0.14, 0.55, 0.16, o.skin, 0.34, 1.15, 0);
-    const head = mk(0.32, 0.32, 0.32, o.skin, 0, 1.58, 0);
-    const hair = mk(0.36, 0.12, 0.36, o.hair, 0, 1.76, 0);
-    let hat = null;
-    if (o.hat === 'cap') hat = mk(0.38, 0.12, 0.38, o.shirt, 0, 1.84, 0);
-    else if (o.hat === 'top hat') { hat = mk(0.34, 0.3, 0.34, '#111111', 0, 1.95, 0); mk(0.44, 0.05, 0.44, '#111111', 0, 1.8, 0); }
-    else if (o.hat === 'bandana') hat = mk(0.36, 0.08, 0.36, '#c1121f', 0, 1.7, 0);
-    g.userData.parts = { legL, legR, armL, armR, body, head, hat };
-    g.userData.pose = {};
+
+    const body = mk(0.52, 0.6, 0.3, o.shirt, 0, 1.18, 0);
+    const hips = mk(0.46, 0.16, 0.28, o.pants, 0, 0.84, 0);
+
+    // arti con perno su fianco/spalla: ruotano dall'estremità superiore, non dal centro
+    const mkLimb = (x, y, w, len, d, color, withHand) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, y, 0);
+      g.add(pivot);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, len, d), this.lambertMat(color));
+      m.position.y = -len / 2;
+      m.castShadow = true;
+      pivot.add(m);
+      if (withHand) {
+        const hand = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 0.12, d * 0.9), this.lambertMat(o.skin || '#e0ac69'));
+        hand.position.y = -len + 0.04;
+        pivot.add(hand);
+      } else {
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.09, w + 0.04), this.lambertMat('#1c1c1c'));
+        foot.position.set(0.05, -len + 0.03, 0);
+        pivot.add(foot);
+      }
+      return pivot;
+    };
+    const legL = mkLimb(-0.13, 0.78, 0.2, 0.72, 0.22, o.pants, false);
+    const legR = mkLimb(0.13, 0.78, 0.2, 0.72, 0.22, o.pants, false);
+    const armL = mkLimb(-0.34, 1.42, 0.14, 0.56, 0.16, o.shirt, true);
+    const armR = mkLimb(0.34, 1.42, 0.14, 0.56, 0.16, o.shirt, true);
+
+    const head = mk(0.34, 0.34, 0.32, o.skin, 0, 1.68, 0);
+    const eyeMat = this.basicMat('#20232b');
+    for (const ez of [0.075, -0.075]) {
+      const eye = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.06), eyeMat);
+      eye.position.set(0.17, 1.72, ez);
+      g.add(eye);
+    }
+    const hair = mk(0.37, 0.13, 0.35, o.hair, -0.02, 1.88, 0);
+    const back = mk(0.16, 0.3, 0.35, o.hair, -0.14, 1.72, 0);
+
+    if (o.hat === 'cap') {
+      mk(0.38, 0.12, 0.37, o.shirt, -0.01, 1.9, 0);
+      mk(0.18, 0.04, 0.3, o.shirt, 0.24, 1.87, 0);
+    } else if (o.hat === 'top hat') {
+      mk(0.5, 0.05, 0.48, '#111111', 0, 1.88, 0);
+      mk(0.3, 0.3, 0.3, '#111111', -0.02, 2.04, 0);
+    } else if (o.hat === 'bandana') {
+      mk(0.36, 0.09, 0.34, '#c1121f', -0.01, 1.8, 0);
+    }
+
+    // armi in mano destra, nascoste di default (visibili solo per chi le porta)
+    const gun = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.1, 0.09), this.basicMat('#141414'));
+    gun.position.set(0.08, -0.56, 0);
+    gun.visible = false;
+    armR.add(gun);
+    const bat = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.09, 0.09), this.lambertMat('#7a5a30'));
+    bat.position.set(0.14, -0.6, 0);
+    bat.rotation.z = 0.4;
+    bat.visible = false;
+    armR.add(bat);
+
+    g.userData.parts = { legL, legR, armL, armR, body, head, gun, bat };
     return g;
   },
 
@@ -285,23 +333,24 @@ const World3 = {
 
   // ---------- sincronizzazione mesh ----------
   syncPersonView(e, mesh) {
-    mesh.position.set(e.x, 0, e.z);
-    mesh.rotation.y = -e.angle;
     const parts = mesh.userData.parts;
-    const dead = e.state === 'dead';
-    if (dead) {
-      mesh.rotation.z = Math.PI / 2;
-      mesh.position.y = 0.4;
+    mesh.rotation.order = 'YXZ';
+    mesh.rotation.y = -e.angle;
+    if (e.state === 'dead') {
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.rotation.z = 0;
+      mesh.position.set(e.x, 0.25, e.z);
       return;
     }
+    mesh.rotation.x = 0;
     mesh.rotation.z = 0;
-    mesh.position.y = 0;
     const moving = e.state !== 'react';
     const ph = moving ? Math.sin(e.walkPhase) : 0;
-    if (parts.legL) parts.legL.rotation.x = ph * 0.6;
-    if (parts.legR) parts.legR.rotation.x = -ph * 0.6;
-    if (parts.armL) parts.armL.rotation.x = -ph * 0.5;
-    if (parts.armR) parts.armR.rotation.x = ph * 0.5;
+    if (parts.legL) parts.legL.rotation.x = ph * 0.55;
+    if (parts.legR) parts.legR.rotation.x = -ph * 0.55;
+    if (parts.armL) parts.armL.rotation.x = -ph * 0.45;
+    if (parts.armR) parts.armR.rotation.x = ph * 0.45;
+    mesh.position.set(e.x, moving ? Math.abs(Math.sin(e.walkPhase)) * 0.05 : 0, e.z);
   },
 
   syncViews(dt) {
@@ -333,7 +382,8 @@ const World3 = {
     });
     syncList(Entities.corpses, (c) => {
       const m = this.buildPersonMesh({ skin: c.skin, shirt: c.shirt, pants: '#333', hair: '#222', hat: 'none' });
-      m.rotation.z = Math.PI / 2;
+      m.rotation.order = 'YXZ';
+      m.rotation.x = -Math.PI / 2;
       return m;
     });
 
@@ -342,6 +392,9 @@ const World3 = {
     if (!pl.view) { pl.view = this.buildPersonMesh(pl.custom); pl.view.userData._entity = pl; this.scene.add(pl.view); }
     if (!pl.inCar && !pl.dead) {
       this.syncPersonView(pl, pl.view);
+      const pp = pl.view.userData.parts;
+      if (pp.gun) pp.gun.visible = !!WEAPONS[pl.curWeapon].bullet;
+      if (pp.bat) pp.bat.visible = pl.curWeapon === 'bat';
       pl.view.visible = true;
     } else pl.view.visible = false;
 
@@ -367,7 +420,7 @@ const World3 = {
       p.view.visible = true;
     }
     for (const c of Entities.corpses) {
-      c.view.position.set(c.x, 0.35, c.z);
+      c.view.position.set(c.x, 0.25, c.z);
       c.view.rotation.y = -c.angle;
       c.view.visible = c.t > 2;
     }
