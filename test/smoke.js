@@ -112,7 +112,7 @@ sandbox.window.document = documentStub;
 sandbox.globalThis = sandbox;
 
 vm.createContext(sandbox);
-const files = ['js/config.js', 'js/utils.js', 'js/input.js', 'js/world.js', 'js/entities.js', 'js/dialogue.js', 'js/memories.js', 'js/phone.js', 'js/ai.js', 'js/systems.js', 'js/main.js'];
+const files = ['js/config.js', 'js/utils.js', 'js/input.js', 'js/world.js', 'js/interiors.js', 'js/entities.js', 'js/dialogue.js', 'js/memories.js', 'js/phone.js', 'js/ai.js', 'js/systems.js', 'js/main.js'];
 for (const f of files) {
   const code = fs.readFileSync(f, 'utf8');
   vm.runInContext(code, sandbox, { filename: f });
@@ -131,7 +131,7 @@ function pumpFrames(n) {
 }
 
 // avvio: boot() è già girato; simula click su Nuova Partita + start
-vm.runInContext('this.__T = { Input, Game, Systems, Entities, World, UI, Dialogue, AIChat, Memories, Phone, startGame };', sandbox);
+vm.runInContext('this.__T = { Input, Game, Systems, Entities, World, UI, Dialogue, AIChat, Memories, Phone, Interiors, startGame };', sandbox);
 const T = sandbox.__T;
 
 T.Input.keys.add('w');
@@ -232,6 +232,30 @@ if (ped) {
 // indicazioni stradali -> marker verde
 T.Dialogue.sideEffects(ped || AN, 'directions');
 console.log('marker indicazioni:', !!T.Systems.tempObjective);
+
+// interni: entra in pizzeria, cassa, sicurezza, uscita
+const doorP = T.World.doors.find(d => d.type === 'pizzeria');
+T.Game.player.x = doorP.x; T.Game.player.y = doorP.y;
+T.Interiors.enter(doorP);
+const itA = T.Interiors.active;
+console.log('interno attivo:', !!itA, 'zoom:', itA ? itA.zoom.toFixed(2) : '-');
+console.log('staff interni:', itA.npcs.length, '— cassa:', !!itA.npcs.find(n => n.role === 'cashier'), 'sicurezza:', !!itA.npcs.find(n => n.role === 'security'));
+const room = itA.room;
+const inside = T.Game.player.x > room.x && T.Game.player.x < room.x + room.w && T.Game.player.y > room.y && T.Game.player.y < room.y + room.h;
+console.log('player dentro la stanza:', inside);
+T.Systems.openShopFor('pizzeria');
+console.log('cassa apre menu pizzeria:', T.UI.dialogOpen);
+T.UI.closeDialog();
+pumpFrames(10);
+console.log('render con interno attivo: ok');
+T.Interiors.exit();
+console.log('uscito — interno spento:', !T.Interiors.active, 'player fuori:', !T.World.buildingAt(T.Game.player.x, T.Game.player.y));
+T.Game.player.wanted = 3;
+T.Interiors.enter(doorP);
+console.log('kick timer con 3 stelle:', T.Interiors.active.kickT !== undefined);
+for (let i = 0; i < 10 && T.Interiors.active; i++) T.Interiors.update(0.5);
+console.log('cacciato dalla sicurezza:', !T.Interiors.active);
+T.Game.player.wanted = 0;
 
 // fase telefono + memorie
 (async () => {
