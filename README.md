@@ -16,6 +16,7 @@ Basta aprire `index.html` nel browser (doppio click), oppure pubblicare il repo 
 | Click sinistro | Attacca / Spara |
 | E | Interagisci (porte, obiettivi) |
 | T | Parla con il passante più vicino |
+| P | Smartphone |
 | F | Entra / Esci dal veicolo |
 | 1-5 / Rotellina | Cambia arma |
 | Esc | Pausa |
@@ -35,6 +36,9 @@ Basta aprire `index.html` nel browser (doppio click), oppure pubblicare il repo 
 - **Polizia e stelle ricercato**: spari in pubblico, omicidi, furti d'auto ed esplosioni attirano la polizia. Evadi nascondendoti o paga la cauzione in centrale.
 - **Economia**: budget in euro (dollari di Temu), soldi a terra dai malcapitati, ospedale a pagamento, salvataggio automatico in `localStorage`.
 
+- **Memorie persistenti**: ogni NPC con cui parli ricorda le conversazioni passate (anche tra sessioni): numero di incontri, affinità (-100/+100) che cambia come ti tratta, argomenti toccati e se l'hai minacciato. Con l'AI collegata, il modello riceve la memoria nel prompt e continua la relazione da dove era rimasta.
+- **Smartphone (tasto P)**: chiamate con effetti reali (Gino ti assegna consegne, il boss apre le missioni, il taxi ti porta in giro, il 112... dipende), SMS con risposte AI/locali e spam da Temu, **fotocamera** che scatta foto vere della partita, **Instagrim** con post, like e follower (le foto con poliziotti ed esplosioni rendono di più), **browser** con siti fake dinamici (notizie basate sui tuoi dati di gioco, blog dei Los Pepes, countdown di GTA 6) e **consegne Temu** che arrivano davvero dopo qualche minuto.
+
 ## Struttura
 
 ```
@@ -46,6 +50,8 @@ js/input.js       tastiera e mouse
 js/world.js       generazione città e terreno pre-renderizzato
 js/entities.js    giocatore, pedoni, poliziotti, auto, proiettili
 js/dialogue.js    motore di dialogo: personalità, argomenti, anti-ripetizione
+js/memories.js    memorie persistenti dei NPC (affinità, incontri, argomenti)
+js/phone.js       smartphone: chiamate, SMS, fotocamera, Instagrim, browser, consegne
 js/ai.js          collegamento API AI (Mistral/OpenAI/Groq/OpenRouter/custom), chiave solo in localStorage
 js/systems.js     traffico, folla, polizia, lavori, negozi, salvataggio
 js/main.js        loop, rendering, UI, personalizzazione

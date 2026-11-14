@@ -109,7 +109,8 @@
       <tr><td>T</td><td>Parla con il passante più vicino</td></tr>
       <tr><td>F</td><td>Entra / Esci dal veicolo</td></tr>
       <tr><td>1 - 5 / Rotellina</td><td>Cambia arma</td></tr>
-      <tr><td>Esc</td><td>Pausa</td></tr>
+      <tr><td>P</td><td>Telefono (chiamate, SMS, fotocamera, Instagrim, browser)</td></tr>
+      <tr><td>Esc</td><td>Chiudi telefono / Pausa</td></tr>
     </table>
     <p class="help-tips">
       Lavora da pizzaiolo, chef o cameriere per soldi puliti.<br>
@@ -133,6 +134,12 @@
   </div>
 </div>
 
+<div id="phone" class="hidden">
+  <div id="phone-status"><span id="phone-clock">08:00</span><span class="ph-net">TEMU 4G 📶</span><span id="phone-money">$0</span></div>
+  <div id="phone-screen"></div>
+  <div id="phone-homebar"><button id="phone-home-btn" data-action="home" title="Home">⬤</button></div>
+</div>
+
 <div id="fade"></div>
 
 <script src="js/config.js"></script>
@@ -141,6 +148,8 @@
 <script src="js/world.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/dialogue.js"></script>
+<script src="js/memories.js"></script>
+<script src="js/phone.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/systems.js"></script>
 <script src="js/main.js"></script>

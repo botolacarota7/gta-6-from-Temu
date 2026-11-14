@@ -40,6 +40,7 @@ function makeElement(tag = 'div') {
     removeEventListener() {},
     getBoundingClientRect() { return { left: 0, top: 0, width: 1280, height: 720 }; },
     getContext() { return makeCtx(); },
+    toDataURL() { return 'data:image/jpeg;base64,TEST'; },
     onclick: null,
     setAttribute() {},
   };
@@ -111,7 +112,7 @@ sandbox.window.document = documentStub;
 sandbox.globalThis = sandbox;
 
 vm.createContext(sandbox);
-const files = ['js/config.js', 'js/utils.js', 'js/input.js', 'js/world.js', 'js/entities.js', 'js/dialogue.js', 'js/ai.js', 'js/systems.js', 'js/main.js'];
+const files = ['js/config.js', 'js/utils.js', 'js/input.js', 'js/world.js', 'js/entities.js', 'js/dialogue.js', 'js/memories.js', 'js/phone.js', 'js/ai.js', 'js/systems.js', 'js/main.js'];
 for (const f of files) {
   const code = fs.readFileSync(f, 'utf8');
   vm.runInContext(code, sandbox, { filename: f });
@@ -121,13 +122,16 @@ function pumpFrames(n) {
   for (let i = 0; i < n; i++) {
     const q = rafQueue;
     rafQueue = [];
+    const timers = sandbox._timers || [];
+    sandbox._timers = [];
     const t = Date.now() + i * 16;
+    for (const fn of timers) { try { fn(); } catch (e) {} }
     for (const fn of q) fn(t);
   }
 }
 
 // avvio: boot() è già girato; simula click su Nuova Partita + start
-vm.runInContext('this.__T = { Input, Game, Systems, Entities, World, UI, Dialogue, AIChat, startGame };', sandbox);
+vm.runInContext('this.__T = { Input, Game, Systems, Entities, World, UI, Dialogue, AIChat, Memories, Phone, startGame };', sandbox);
 const T = sandbox.__T;
 
 T.Input.keys.add('w');
@@ -229,7 +233,54 @@ if (ped) {
 T.Dialogue.sideEffects(ped || AN, 'directions');
 console.log('marker indicazioni:', !!T.Systems.tempObjective);
 
-// fase AI: conversazione con API simulata
+// fase telefono + memorie
+(async () => {
+  T.Phone.toggle();
+  console.log('telefono aperto:', T.Phone.open);
+  T.Phone.show = null;
+  T.Phone.app = 'calls'; T.Phone.render();
+  T.Phone.call('gino');
+  // lascia maturare la chiamata (setTimeout accodati)
+  for (let i = 0; i < 200 && T.Phone.calling; i++) pumpFrames(1);
+  console.log('chiamata gino — lavoro attivo:', !!T.Systems.activeJob);
+  T.Systems.activeJob = null;
+
+  T.Phone.app = 'sms'; T.Phone.thread = null; T.Phone.render();
+  T.Phone.openThread('antonio');
+  T.Phone.sendSMS('antonio', 'ciao Antonio, dritta veloce?');
+  pumpFrames(5);
+  const msgs = T.Phone.smsThreads.antonio;
+  console.log('sms ok — messaggi:', msgs.length, 'ultima:', msgs[msgs.length-1].text.slice(0, 40));
+  T.Phone.close();
+
+  T.Phone.app = 'camera'; T.Phone.render();
+  T.Phone.snap();
+  console.log('foto scattata:', !!T.Phone.photo);
+  T.Phone.publishPost('test post da smoke');
+  console.log('post pubblicato — post:', T.Phone.posts.length, 'follower:', T.Phone.followers);
+
+  T.Phone.app = 'browser'; T.Phone.site = null; T.Phone.render();
+  T.Phone.visit('temu');
+  T.Phone.buyItem('mystery', 50);
+  console.log('ordine temU — consegna pendente:', !!T.Phone.pendingDelivery);
+  T.Game.elapsed += 200;
+  T.Phone.updateDelivery();
+  console.log('consegna ricevuta:', !T.Phone.pendingDelivery);
+  T.Phone.close();
+
+  // memorie: due conversazioni con lo stesso pedone
+  const p2 = T.Entities.peds.find(x => !x.isAntonio && x.state === 'walk');
+  T.Game.player.x = p2.x + 30; T.Game.player.y = p2.y;
+  T.UI.startConversation(p2);
+  T.UI.convRespond('ciao', { id: 'greet', label: 'Saluta', line: 'Ciao! Come va?' });
+  T.UI.closeDialog();
+  T.UI.startConversation(p2);
+  T.UI.convRespond('parliamo di pizza', null);
+  T.UI.closeDialog();
+  const mem = T.Memories.get(p2.name);
+  console.log('memoria — talks:', mem.talks, 'affinità:', mem.affinity, 'argomenti:', mem.topics.join(','));
+  console.log('SMOKE TEST PASSATO (telefono + memorie)');
+})().catch((e) => { console.error('FALLITO:', e); process.exit(1); });
 (async () => {
   const A = T.AIChat;
   A.settings.enabled = true;
