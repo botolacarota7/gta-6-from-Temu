@@ -98,6 +98,38 @@ const AIChat = {
     ].filter(Boolean).join(' ');
   },
 
+  async complete(system, user, maxTokens) {
+    const s = this.settings;
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 20000) : null;
+    try {
+      const res = await fetch(this.endpoint(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + s.apiKey,
+        },
+        body: JSON.stringify({
+          model: this.model(),
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          max_tokens: maxTokens || 400,
+          temperature: 1.0,
+        }),
+        signal: ctrl ? ctrl.signal : undefined,
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (!text) throw new Error('risposta vuota');
+      return String(text);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  },
+
   async reply(npc, userText, history) {
     const s = this.settings;
     const messages = [{ role: 'system', content: this.systemPrompt(npc) }];
