@@ -2,7 +2,7 @@
 const Game = {
   canvas: null, ctx: null,
   player: null,
-  camX: 0, camY: 0,
+  camX: 0, camY: 0, zoom: 1,
   elapsed: 0,
   timeMin: 8 * 60,
   state: 'menu',      // menu | custom | play
@@ -400,7 +400,7 @@ function playerAttack() {
     return;
   }
   pl.lastShot = now;
-  const aim = angleTo(pl.x, pl.y, Game.camX + Input.mouse.x, Game.camY + Input.mouse.y);
+  const aim = angleTo(pl.x, pl.y, Game.camX + Input.mouse.x / Game.zoom, Game.camY + Input.mouse.y / Game.zoom);
   pl.angle = aim;
   if (w.melee) {
     sfx('punch');
@@ -454,11 +454,26 @@ function updateInteractions() {
   }
 
   if (Input.hit('e')) {
-    const door = nearestDoor(60);
-    if (door) Systems.interactDoor(door);
+    if (Interiors.active) {
+      const staff = Interiors.nearestStaff(78);
+      if (staff && staff.role === 'cashier') { sfx('click'); Systems.openShopFor(Interiors.active.type); }
+      else if (staff && staff.role === 'security') Interiors.talkSecurity(staff);
+      else if (Interiors.nearExit(50)) Interiors.exit();
+    } else if (!pl.inCar) {
+      const door = nearestDoor(60);
+      if (door) Interiors.enter(door);
+    }
   }
 
-  if (Input.hit('t')) Systems.talkToNearestPed();
+  if (Input.hit('t')) {
+    if (Interiors.active) {
+      const staff = Interiors.nearestStaff(85);
+      if (staff) UI.startConversation(staff);
+      else UI.toast('Non c\u00e8 nessuno abbastanza vicino per parlare.', 'bad');
+    } else {
+      Systems.talkToNearestPed();
+    }
+  }
 
   // cambio arma
   for (let i = 0; i < WEAPON_ORDER.length; i++) {
@@ -503,6 +518,14 @@ function updateHint() {
     return;
   }
   if (pl.inCar) { UI.setHint('[F] Scendi dall\'auto'); return; }
+  if (Interiors.active) {
+    const staff = Interiors.nearestStaff(78);
+    if (staff && staff.role === 'cashier') { UI.setHint('[E] Cassa \u00b7 [T] Parla con ' + staff.name); return; }
+    if (staff && staff.role === 'security') { UI.setHint('[T] Parla con ' + staff.name); return; }
+    if (Interiors.nearExit(50)) { UI.setHint('[E] Esci \u00b7 [T] Parla'); return; }
+    UI.setHint('[P] Telefono');
+    return;
+  }
   const door = nearestDoor(60);
   if (door) { UI.setHint('[E] ' + door.label); return; }
   const car = Systems.nearestCar(80);
@@ -526,11 +549,23 @@ function render() {
   const ctx = Game.ctx;
   const vw = Game.canvas.width, vh = Game.canvas.height;
   const pl = Game.player;
-  const night = nightAmount() > 0.15;
+  const it = typeof Interiors !== 'undefined' ? Interiors.active : null;
+  const zoom = it ? it.zoom : 1;
+  Game.zoom = zoom;
+  const night = !it && nightAmount() > 0.15;
 
-  Game.camX = clamp(pl.x - vw / 2, 0, WORLD_W - vw);
-  Game.camY = clamp(pl.y - vh / 2, 0, WORLD_W - vh);
+  const viewW = vw / zoom, viewH = vh / zoom;
+  if (it) {
+    Game.camX = clamp(it.cx - viewW / 2, 0, WORLD_W - viewW);
+    Game.camY = clamp(it.cy - viewH / 2, 0, WORLD_W - viewH);
+  } else {
+    Game.camX = clamp(pl.x - vw / 2, 0, WORLD_W - vw);
+    Game.camY = clamp(pl.y - vh / 2, 0, WORLD_W - vh);
+  }
   const camX = Game.camX, camY = Game.camY;
+
+  ctx.save();
+  if (it) ctx.scale(zoom, zoom);
 
   World.drawGround(ctx, camX, camY, vw, vh);
 
@@ -561,6 +596,9 @@ function render() {
   }
 
   World.drawBuildings(ctx, camX, camY, vw, vh, night);
+
+  // interni (sopra l'edificio, sotto le persone)
+  if (it) Interiors.draw(ctx, camX, camY);
 
   // marker obiettivo
   const job = Systems.activeJob;
@@ -611,7 +649,7 @@ function render() {
 
   // giocatore
   if (!pl.inCar && !pl.dead) {
-    const aim = angleTo(pl.x, pl.y, camX + Input.mouse.x, camY + Input.mouse.y);
+    const aim = angleTo(pl.x, pl.y, camX + Input.mouse.x / zoom, camY + Input.mouse.y / zoom);
     pl.angle = aim;
     drawPerson(ctx, pl.x - camX, pl.y - camY, pl.angle, {
       skin: pl.custom.skin, shirt: pl.custom.shirt, pants: pl.custom.pants,
@@ -639,7 +677,7 @@ function render() {
   ctx.globalAlpha = 1;
 
   // notte
-  const dark = nightAmount();
+  const dark = it ? 0 : nightAmount();
   if (dark > 0) {
     ctx.fillStyle = 'rgba(8,10,38,' + dark + ')';
     ctx.fillRect(0, 0, vw, vh);
@@ -684,6 +722,8 @@ function render() {
       ctx.restore();
     }
   }
+
+  ctx.restore();
 
   drawMinimap();
 }
@@ -816,6 +856,11 @@ function startGame(save) {
   const pizzeria = World.doors.find((d) => d.type === 'pizzeria');
   if (save) {
     Game.player.x = save.x; Game.player.y = save.y;
+    const inB = World.buildingAt(save.x, save.y);
+    if (inB) {
+      const dd = World.doors.find((d) => d.building === inB) || World.doors[0];
+      Game.player.x = dd.x; Game.player.y = dd.y + 16;
+    }
     Game.player.money = save.money;
     Game.player.health = save.health;
     Game.player.armor = save.armor;
@@ -938,6 +983,7 @@ function loop(now) {
   if (Game.state !== 'play') return;
   if (!Game.paused && !UI.dialogOpen && !Game.player.dead) {
     Game.elapsed += dt;
+    Interiors.update(dt);
     Systems.update(dt);
     updateInteractions();
     updateHint();
