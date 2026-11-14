@@ -128,10 +128,11 @@ const UI = {
     const ped = this._conv.ped;
     this.dialogOpen = true;
     document.getElementById('dialog').classList.remove('hidden');
-    document.getElementById('dialog-title').textContent = 'Conversazione — ' + ped.name + (ped.mood === 'grumpy' ? ' (di cattivo umore)' : ped.mood === 'friendly' ? ' (di buon umore)' : ped.mood === 'gangster' ? ' (della gang)' : ped.state === 'flee' ? ' (terrorizzato)' : '');
-    const hist = this._conv.history.slice(-8).map((h) =>
+    document.getElementById('dialog-title').textContent = 'Conversazione — ' + ped.name + (ped.mood === 'grumpy' ? ' (di cattivo umore)' : ped.mood === 'friendly' ? ' (di buon umore)' : ped.mood === 'gangster' ? ' (della gang)' : ped.state === 'flee' ? ' (terrorizzato)' : '') + (AIChat.configured() ? ' 🤖' : '');
+    let hist = this._conv.history.slice(-8).map((h) =>
       '<div class="conv-line' + (h.who === 'Tu' ? ' me' : '') + '"><b>' + escHtml(h.who) + ':</b> ' + escHtml(h.text) + '</div>'
     ).join('');
+    if (this._conv.pending) hist += '<div class="conv-line"><b>' + escHtml(ped.name) + ':</b> <i>sta pensando...</i></div>';
     document.getElementById('dialog-body').innerHTML =
       '<div id="conv-history">' + hist + '</div>' +
       '<div class="conv-input-row">' +
@@ -165,22 +166,119 @@ const UI = {
     h.scrollTop = h.scrollHeight;
   },
 
-  convRespond(line, option) {
+  async convRespond(line, option) {
+    if (!this._conv || this._conv.pending) return;
     const ped = this._conv.ped;
     this._conv.history.push({ who: 'Tu', text: line });
-    const r = Dialogue.reply(ped, line);
-    this._conv.history.push({ who: ped.name, text: r.text });
-    ped.say(r.text.length > 55 ? r.text.slice(0, 52) + '...' : r.text);
+    let replyText = null, effect = null;
+
+    if (AIChat.configured()) {
+      this._conv.pending = true;
+      this.renderConv();
+      try {
+        replyText = await AIChat.reply(ped, line, this._conv.history.slice(0, -1));
+      } catch (e) {
+        if (!this._aiFailToasted) {
+          this._aiFailToasted = true;
+          this.toast('AI non raggiungibile (' + (e.message || 'errore') + '): uso il motore locale.', 'bad');
+        }
+        replyText = null;
+      }
+      this._conv.pending = false;
+      if (!this._conv) return;
+    }
+
+    if (replyText == null) {
+      const r = Dialogue.reply(ped, line);
+      replyText = r.text;
+      effect = r.effect;
+    }
+
     if (option && option.exit) { this.closeDialog(); return; }
-    if (r.effect === 'flee' || r.effect === 'rob') {
-      this.toast(ped.name + ' se ne va di corsa!', r.effect === 'rob' ? 'money' : 'bad');
+    this._conv.history.push({ who: ped.name, text: replyText });
+    ped.say(replyText.length > 55 ? replyText.slice(0, 52) + '...' : replyText);
+
+    if (effect === 'flee' || effect === 'rob') {
+      this.toast(ped.name + ' se ne va di corsa!', effect === 'rob' ? 'money' : 'bad');
       this.closeDialog();
       return;
     }
-    if (r.effect === 'marker') this.toast('Indicazione ricevuta: guarda il marcatore verde.', 'good');
+    if (effect === 'marker') this.toast('Indicazione ricevuta: guarda il marcatore verde.', 'good');
     this.renderConv();
   },
 
+  // ---------- impostazioni AI ----------
+  openAISettings() {
+    this.dialogOpen = true;
+    document.getElementById('dialog').classList.remove('hidden');
+    document.getElementById('dialog-title').textContent = 'Impostazioni AI 🤖';
+    const s = AIChat.settings;
+    const presetOpts = Object.entries(AIChat.presets).map(([id, p]) =>
+      '<option value="' + id + '"' + (s.provider === id ? ' selected' : '') + '>' + p.label + '</option>'
+    ).join('');
+    document.getElementById('dialog-body').innerHTML =
+      '<p style="margin-bottom:10px;">Collega una API AI per far generare le risposte dei NPC a un modello linguistico. ' +
+      'La chiave viene salvata <b>solo nel tuo browser</b> (localStorage): non finisce mai nel codice su GitHub.</p>' +
+      '<label style="display:block;margin:8px 0 4px;font-weight:700;">Attiva AI</label>' +
+      '<select id="ai-enabled"><option value="0"' + (!s.enabled ? ' selected' : '') + '>No — motore locale</option>' +
+      '<option value="1"' + (s.enabled ? ' selected' : '') + '>Sì — usa l\'API</option></select>' +
+      '<label style="display:block;margin:8px 0 4px;font-weight:700;">Provider</label>' +
+      '<select id="ai-provider">' + presetOpts + '</select>' +
+      '<label style="display:block;margin:8px 0 4px;font-weight:700;">Chiave API</label>' +
+      '<input id="ai-key" type="password" style="width:100%;padding:8px;background:#101018;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;" value="' + escHtml(s.apiKey) + '" placeholder="Incolla qui la tua chiave">' +
+      '<label style="display:block;margin:8px 0 4px;font-weight:700;">Modello (opzionale)</label>' +
+      '<input id="ai-model" type="text" style="width:100%;padding:8px;background:#101018;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;" value="' + escHtml(s.model) + '" placeholder="Default del provider">' +
+      '<div id="ai-custom-url" style="display:' + (s.provider === 'custom' ? 'block' : 'none') + ';">' +
+      '<label style="display:block;margin:8px 0 4px;font-weight:700;">URL endpoint (OpenAI-compatibile)</label>' +
+      '<input id="ai-url" type="text" style="width:100%;padding:8px;background:#101018;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;" value="' + escHtml(s.baseUrl) + '" placeholder="https://.../v1/chat/completions"></div>' +
+      '<p id="ai-hint" style="margin-top:10px;font-size:13px;color:#9aa;">' + escHtml((AIChat.presets[s.provider] || {}).keyHint || '') + '</p>';
+
+    const btns = document.getElementById('dialog-buttons');
+    btns.innerHTML = '';
+    const prov = document.getElementById('ai-provider');
+    prov.addEventListener('change', () => {
+      document.getElementById('ai-custom-url').style.display = prov.value === 'custom' ? 'block' : 'none';
+      document.getElementById('ai-hint').textContent = (AIChat.presets[prov.value] || {}).keyHint || '';
+    });
+    const save = () => {
+      s.enabled = document.getElementById('ai-enabled').value === '1';
+      s.provider = prov.value;
+      s.apiKey = document.getElementById('ai-key').value.trim();
+      s.model = document.getElementById('ai-model').value.trim();
+      s.baseUrl = (document.getElementById('ai-url') || { value: '' }).value.trim();
+      AIChat.save();
+      this.toast(s.enabled && AIChat.configured() ? 'AI collegata! I NPC ora parlano col modello.' :
+        s.enabled ? 'Chiave o endpoint mancante: resto sul motore locale.' : 'AI disattivata: motore locale.', s.enabled && AIChat.configured() ? 'good' : 'bad');
+      this.closeDialog();
+    };
+    const test = async () => {
+      const bak = JSON.parse(JSON.stringify(s));
+      s.enabled = document.getElementById('ai-enabled').value === '1';
+      s.provider = prov.value;
+      s.apiKey = document.getElementById('ai-key').value.trim();
+      s.model = document.getElementById('ai-model').value.trim();
+      s.baseUrl = (document.getElementById('ai-url') || { value: '' }).value.trim();
+      this.toast('Test in corso...', '');
+      try {
+        const fake = { name: 'Antonio', mood: 'friendly', isAntonio: true, state: 'walk' };
+        const out = await AIChat.reply(fake, 'Ciao! Test di collegamento: dimmi ciao in una frase.');
+        this.toast('Funziona! Risposta: ' + out.slice(0, 80), 'good');
+      } catch (e) {
+        this.toast('Test fallito: ' + (e.message || 'errore'), 'bad');
+      }
+      Object.assign(s, bak);
+    };
+    const mk = (label, fn) => {
+      const el = document.createElement('button');
+      el.className = 'btn';
+      el.textContent = label;
+      el.onclick = fn;
+      btns.appendChild(el);
+    };
+    mk('Salva impostazioni', save);
+    mk('Testa collegamento', test);
+    mk('Chiudi', () => this.closeDialog());
+  },
   setHint(text) { document.getElementById('hud-hint').textContent = text || ''; },
 
   fadeFlash() {
@@ -197,7 +295,7 @@ const UI = {
     document.getElementById('hud-armor').style.width = clamp(pl.armor, 0, 100) + '%';
     const wbox = document.getElementById('hud-wanted');
     let stars = '';
-    for (let i = 0; i < 5; i++) stars += '<span class="' + (i < pl.wanted ? 'star' : 'off') + '">★</span>';
+    for (let i = 0; i < 5; i++) stars += '<span class="' + (i < pl.wanted ? 'star' : 'off') + '">\u2605</span>';
     wbox.innerHTML = stars;
     const w = WEAPONS[pl.curWeapon];
     let ammoTxt = '';
@@ -205,7 +303,7 @@ const UI = {
     document.getElementById('hud-weapon').textContent = w.name + ammoTxt;
     document.getElementById('hud-clock').textContent = fmtTime(Game.timeMin);
     const job = Systems.activeJob;
-    document.getElementById('hud-objective').textContent = job ? '🎯 ' + job.objective.label : '';
+    document.getElementById('hud-objective').textContent = job ? '\ud83c\udfaf ' + job.objective.label : '';
     document.getElementById('hud-timer').textContent = job && job.timer !== null ? Math.ceil(job.timer) + 's' : '';
   },
 
@@ -215,7 +313,7 @@ const UI = {
     let zoneStart = rand(25, 60), zoneW = 16;
 
     const body = document.getElementById('dialog-body');
-    body.innerHTML = 'Prepara 3 piatti perfetti: premi <b>SPAZIO</b> quando l\'indicatore è nella zona verde.<br>' +
+    body.innerHTML = 'Prepara 3 piatti perfetti: premi <b>SPAZIO</b> quando l\'indicatore \u00e8 nella zona verde.<br>' +
       '<div id="cookbar" style="position:relative;height:34px;background:#222;border-radius:6px;margin-top:12px;overflow:hidden;">' +
       '<div id="cookzone" style="position:absolute;top:0;height:100%;background:#2c8f2c;"></div>' +
       '<div id="cookmark" style="position:absolute;top:0;width:6px;height:100%;background:#ffd23f;"></div></div>' +
@@ -223,7 +321,7 @@ const UI = {
     document.getElementById('dialog-buttons').innerHTML = '';
     this.dialogOpen = true;
     document.getElementById('dialog').classList.remove('hidden');
-    document.getElementById('dialog-title').textContent = 'Chef — Cottura perfetta';
+    document.getElementById('dialog-title').textContent = 'Chef \u2014 Cottura perfetta';
 
     const zone = document.getElementById('cookzone');
     const mark = document.getElementById('cookmark');
@@ -238,7 +336,7 @@ const UI = {
       const pl = Game.player;
       if (win) {
         pl.money += 90;
-        UI.toast('Servizio finito! Il capo è fiero. +' + fmtMoney(90), 'money');
+        UI.toast('Servizio finito! Il capo \u00e8 fiero. +' + fmtMoney(90), 'money');
         sfx('cash');
       } else {
         UI.toast('Il capo ti caccia dalla cucina!', 'bad');
@@ -280,7 +378,6 @@ const UI = {
       if (active) { active = false; if (raf) cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); }
       this._chefStop = null;
     };
-    // bottone per uscire
     const quit = document.createElement('button');
     quit.className = 'btn';
     quit.textContent = 'Molla la cucina';
@@ -863,6 +960,8 @@ function boot() {
   document.getElementById('btn-help').onclick = () => document.getElementById('screen-help').classList.remove('hidden');
   document.getElementById('btn-help2').onclick = () => document.getElementById('screen-help').classList.remove('hidden');
   document.getElementById('btn-help-close').onclick = () => document.getElementById('screen-help').classList.add('hidden');
+  document.getElementById('btn-ai').onclick = () => { sfx('click'); UI.openAISettings(); };
+  document.getElementById('btn-ai2').onclick = () => { sfx('click'); UI.openAISettings(); };
   document.getElementById('btn-resume').onclick = () => togglePause();
   document.getElementById('btn-save').onclick = () => Systems.save();
   document.getElementById('btn-quit').onclick = () => {

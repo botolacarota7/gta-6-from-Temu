@@ -7,6 +7,8 @@ const Input = {
 
   init(canvas) {
     window.addEventListener('keydown', (e) => {
+      const tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab'].includes(e.key)) e.preventDefault();
       const k = e.key.toLowerCase();
       if (!this.keys.has(k)) this.pressed.add(k);

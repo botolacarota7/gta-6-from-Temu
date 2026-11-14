@@ -46,6 +46,7 @@ js/input.js       tastiera e mouse
 js/world.js       generazione città e terreno pre-renderizzato
 js/entities.js    giocatore, pedoni, poliziotti, auto, proiettili
 js/dialogue.js    motore di dialogo: personalità, argomenti, anti-ripetizione
+js/ai.js          collegamento API AI (Mistral/OpenAI/Groq/OpenRouter/custom), chiave solo in localStorage
 js/systems.js     traffico, folla, polizia, lavori, negozi, salvataggio
 js/main.js        loop, rendering, UI, personalizzazione
 test/smoke.js     smoke test headless (node test/smoke.js)
