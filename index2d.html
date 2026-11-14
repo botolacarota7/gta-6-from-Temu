@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTA VI: Temu Edition</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="game" width="1280" height="720"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="hud-top-left">
+    <div id="hud-money">$0</div>
+    <div id="hud-wanted"></div>
+    <div id="hud-health-wrap">
+      <div id="hud-health"></div>
+    </div>
+    <div id="hud-armor-wrap">
+      <div id="hud-armor"></div>
+    </div>
+  </div>
+  <div id="hud-top-right">
+    <canvas id="minimap" width="170" height="170"></canvas>
+    <div id="hud-clock">08:00</div>
+  </div>
+  <div id="hud-weapon">Pugni</div>
+  <button id="hud-phone" title="Telefono (P)">📱</button>
+  <div id="hud-objective"></div>
+  <div id="hud-timer"></div>
+  <div id="toasts"></div>
+  <div id="hud-hint"></div>
+</div>
+
+<!-- Menu principale -->
+<div id="screen-menu" class="screen">
+  <div class="menu-box">
+    <h1 class="game-title">GTA VI<span class="temu">: TEMU EDITION</span></h1>
+    <p class="subtitle">Grand Theft Artronio — la copia sospetta che arriva in busta rosa</p>
+    <button id="btn-new" class="btn btn-big">NUOVA PARTITA</button>
+    <button id="btn-continue" class="btn btn-big hidden">CONTINUA</button>
+    <button id="btn-help" class="btn">COMANDI</button>
+    <button id="btn-ai" class="btn">IMPOSTAZIONI AI 🤖</button>
+    <div class="menu-footer">v1.0 — 100% senza DRM, 100% senza qualità GTA</div>
+  </div>
+</div>
+
+<!-- Personalizzazione avatar -->
+<div id="screen-custom" class="screen hidden">
+  <div class="custom-box">
+    <h2>CREA IL TUO BOSS</h2>
+    <div class="custom-layout">
+      <div class="custom-left">
+        <canvas id="preview" width="220" height="280"></canvas>
+      </div>
+      <div class="custom-right">
+        <label>Nome</label>
+        <input id="custom-name" type="text" maxlength="14" value="Artronio">
+        <label>Carnagione</label>
+        <div class="swatches" id="sw-skin"></div>
+        <label>Maglia</label>
+        <div class="swatches" id="sw-shirt"></div>
+        <label>Pantaloni</label>
+        <div class="swatches" id="sw-pants"></div>
+        <label>Capelli</label>
+        <div class="swatches" id="sw-hair"></div>
+        <label>Cappello</label>
+        <select id="custom-hat">
+          <option value="none">Niente</option>
+          <option value="cap">Cappellino</option>
+          <option value="top hat">Cilindro da boss</option>
+          <option value="bandana">Bandana da gang</option>
+        </select>
+        <label>Veicolo iniziale</label>
+        <select id="custom-car">
+          <option value="none">A piedi, come un vero duro</option>
+          <option value="rusty">Rattoppo (lenta ma affidabile)</option>
+          <option value="sport">Fulmine GT (veloce e costosa)</option>
+        </select>
+      </div>
+    </div>
+    <button id="btn-start" class="btn btn-big">ENTRA IN CITTÀ</button>
+  </div>
+</div>
+
+<!-- Pausa -->
+<div id="screen-pause" class="screen hidden">
+  <div class="menu-box">
+    <h2>PAUSA</h2>
+    <button id="btn-resume" class="btn btn-big">RIPRENDI</button>
+    <button id="btn-save" class="btn">SALVA</button>
+    <button id="btn-help2" class="btn">COMANDI</button>
+    <button id="btn-ai2" class="btn">IMPOSTAZIONI AI 🤖</button>
+    <button id="btn-quit" class="btn btn-danger">MENU PRINCIPALE</button>
+  </div>
+</div>
+
+<!-- Aiuto -->
+<div id="screen-help" class="screen hidden">
+  <div class="help-box">
+    <h2>COMANDI</h2>
+    <table class="help-table">
+      <tr><td>W A S D / Frecce</td><td>Muoviti / Guida</td></tr>
+      <tr><td>Shift</td><td>Corri</td></tr>
+      <tr><td>Mouse</td><td>Mira</td></tr>
+      <tr><td>Click sinistro</td><td>Attacca / Spara</td></tr>
+      <tr><td>E</td><td>Interagisci (entra nei negozi, cassa, obiettivi, soldi)</td></tr>
+      <tr><td>T</td><td>Parla con il passante più vicino</td></tr>
+      <tr><td>F</td><td>Entra / Esci dal veicolo</td></tr>
+      <tr><td>1 - 5 / Rotellina</td><td>Cambia arma</td></tr>
+      <tr><td>P</td><td>Telefono (chiamate, SMS, fotocamera, Instagrim, browser)</td></tr>
+      <tr><td>Esc</td><td>Chiudi telefono / Pausa</td></tr>
+    </table>
+    <p class="help-tips">
+      Entra nei negozi con [E]: dentro trovi la cassa, la sicurezza e i clienti.<br>
+      Lavora da pizzaiolo, chef o cameriere per soldi puliti.<br>
+      Dal capo dei Los Pepes prendi missioni sporche (e stelle ricercate).<br>
+      Compra armi all'Ammu-Nazione, macchine alla concessionaria.<br>
+      Le stelle si spengono da sole se ti nascondi, oppure paga la cauzione in centrale.<br>
+      Con [T] puoi parlare con chiunque: opzioni rapide o scrivi liberamente ciò che vuoi dire.<br>
+      Se passi vicino ad Antonio, ti ferma di suo per due chiacchiere.<br>
+      Collega un'API AI dalle Impostazioni per risposte generate dal vero AI (la chiave resta solo nel tuo browser).
+    </p>
+    <button id="btn-help-close" class="btn btn-big">CHIUDI</button>
+  </div>
+</div>
+
+<!-- Dialoghi / negozi / lavori -->
+<div id="dialog" class="hidden">
+  <div id="dialog-panel">
+    <h3 id="dialog-title"></h3>
+    <div id="dialog-body"></div>
+    <div id="dialog-buttons"></div>
+  </div>
+</div>
+
+<div id="phone" class="hidden">
+  <div id="phone-island"></div>
+  <div id="phone-status">
+    <span id="phone-clock">08:00</span>
+    <span class="ph-status-right"><span class="ph-net">TEMU 4G</span><span class="ph-batt"><span class="ph-batt-fill"></span></span><span id="phone-money">$0</span></span>
+  </div>
+  <div id="phone-screen"></div>
+  <div id="phone-homebar"><button id="phone-home-btn" data-action="home" title="Home" aria-label="Home"></button></div>
+</div>
+
+<div id="fade"></div>
+
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/input.js"></script>
+<script src="js/world.js"></script>
+<script src="js/interiors.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/dialogue.js"></script>
+<script src="js/memories.js"></script>
+<script src="js/phone.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/systems.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
