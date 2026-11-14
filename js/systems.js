@@ -15,7 +15,7 @@ const Systems = {
       p.update(dt, pl);
       const d = dist(p.x, p.y, pl.x, pl.y);
       if (p.isAntonio) {
-        if (d > 2200) { p.x = pl.x + rand(-400, 400); p.y = pl.y + rand(-400, 400); }
+        if (d > 2200 && !Interiors.active) { p.x = pl.x + rand(-400, 400); p.y = pl.y + rand(-400, 400); }
       } else if (d > 1500 && p.gang !== 'rival') Entities.peds.splice(i, 1);
       else if (p.state === 'dead') Entities.peds.splice(i, 1);
     }
@@ -73,7 +73,7 @@ const Systems = {
     // Antonio ti fermA quando passi
     this.antonioCd = Math.max(0, (this.antonioCd || 0) - dt);
     const antonio = Entities.peds.find((p) => p.isAntonio && p.state !== 'dead');
-    if (antonio && !UI.dialogOpen && !pl.inCar && !pl.dead && this.antonioCd <= 0 && dist(antonio.x, antonio.y, pl.x, pl.y) < 90) {
+    if (antonio && !Interiors.active && !UI.dialogOpen && !pl.inCar && !pl.dead && this.antonioCd <= 0 && dist(antonio.x, antonio.y, pl.x, pl.y) < 90) {
       this.antonioCd = 45;
       UI.startConversation(antonio);
     }
@@ -620,7 +620,11 @@ const Systems = {
   },
 
   interactDoor(door) {
-    switch (door.type) {
+    Interiors.enter(door);
+  },
+
+  openShopFor(type) {
+    switch (type) {
       case 'pizzeria': this.openPizzeria(); break;
       case 'restaurant': this.openRestaurant(); break;
       case 'gunshop': this.openGunShop(); break;
@@ -628,7 +632,7 @@ const Systems = {
       case 'gang': this.openGang(); break;
       case 'police': this.openPolice(); break;
       case 'hospital': this.openHospital(); break;
-      default: UI.toast(door.label);
+      default: UI.toast('Qui non c\u00e8 servizio al banco.');
     }
   },
 

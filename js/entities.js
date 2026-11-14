@@ -104,6 +104,10 @@ class Player {
   }
 
   collide() {
+    if (typeof Interiors !== 'undefined' && Interiors.active) {
+      Interiors.clampPlayer(this);
+      return;
+    }
     for (const b of World.buildings) {
       if (circleRect(this.x, this.y, this.radius, b.x, b.y, b.w, b.h)) {
         const cx = clamp(this.x, b.x, b.x + b.w);
