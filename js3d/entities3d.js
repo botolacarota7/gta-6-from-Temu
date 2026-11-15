@@ -225,6 +225,7 @@ class Cop3 {
     if (this.bubbleT > 0) { this.bubbleT -= dt; if (this.bubbleT <= 0) this.bubble = null; }
     const d = dist(this.x, this.z, player.x, player.z);
     this.angle = angleTo(this.x, this.z, player.x, player.z);
+    this.aiming = d <= 40 && !player.dead;
     this.shootT -= dt;
 
     if (d > 30) {
