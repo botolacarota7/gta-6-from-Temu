@@ -176,77 +176,117 @@ const World3 = {
     }
   },
 
-  // ---------- mesh personaggi ----------
+  // ---------- mesh personaggi (corpo smussato, articolazioni con gomiti e ginocchia) ----------
   buildPersonMesh(o) {
     const g = new THREE.Group();
-    const mk = (w, h, d, color, x, y, z, parent) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), this.lambertMat(color));
-      m.position.set(x, y, z);
+    const skin = o.skin || '#e0ac69';
+    const mk = (geo, color, parent) => {
+      const m = new THREE.Mesh(geo, this.lambertMat(color));
       m.castShadow = true;
       (parent || g).add(m);
       return m;
     };
 
-    const body = mk(0.52, 0.6, 0.3, o.shirt, 0, 1.18, 0);
-    const hips = mk(0.46, 0.16, 0.28, o.pants, 0, 0.84, 0);
+    // torso conico + spalle + collo
+    const body = new THREE.Group();
+    body.position.y = 1.22;
+    g.add(body);
+    const torso = mk(new THREE.CylinderGeometry(0.26, 0.19, 0.62, 12), o.shirt, body);
+    torso.position.y = 0;
+    for (const sx of [-0.26, 0.26]) mk(new THREE.SphereGeometry(0.12, 10, 8), o.shirt, body).position.set(sx, 0.24, 0);
+    const neck = mk(new THREE.CylinderGeometry(0.07, 0.08, 0.12, 8), skin, body);
+    neck.position.y = 0.36;
 
-    // arti con perno su fianco/spalla: ruotano dall'estremità superiore, non dal centro
-    const mkLimb = (x, y, w, len, d, color, withHand) => {
-      const pivot = new THREE.Group();
-      pivot.position.set(x, y, 0);
-      g.add(pivot);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, len, d), this.lambertMat(color));
-      m.position.y = -len / 2;
-      m.castShadow = true;
-      pivot.add(m);
-      if (withHand) {
-        const hand = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 0.12, d * 0.9), this.lambertMat(o.skin || '#e0ac69'));
-        hand.position.y = -len + 0.04;
-        pivot.add(hand);
-      } else {
-        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.09, w + 0.04), this.lambertMat('#1c1c1c'));
-        foot.position.set(0.05, -len + 0.03, 0);
-        pivot.add(foot);
-      }
-      return pivot;
-    };
-    const legL = mkLimb(-0.13, 0.78, 0.2, 0.72, 0.22, o.pants, false);
-    const legR = mkLimb(0.13, 0.78, 0.2, 0.72, 0.22, o.pants, false);
-    const armL = mkLimb(-0.34, 1.42, 0.14, 0.56, 0.16, o.shirt, true);
-    const armR = mkLimb(0.34, 1.42, 0.14, 0.56, 0.16, o.shirt, true);
-
-    const head = mk(0.34, 0.34, 0.32, o.skin, 0, 1.68, 0);
-    const eyeMat = this.basicMat('#20232b');
+    // testa sferica con capelli a calotta, occhi e naso
+    const head = new THREE.Group();
+    head.position.y = 1.74;
+    g.add(head);
+    mk(new THREE.SphereGeometry(0.19, 14, 12), skin, head);
+    const hairCap = mk(new THREE.SphereGeometry(0.205, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), o.hair, head);
+    hairCap.rotation.z = -0.35;
+    const backHair = mk(new THREE.SphereGeometry(0.17, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.75), o.hair, head);
+    backHair.position.set(-0.07, -0.02, 0);
+    backHair.rotation.z = Math.PI / 2;
+    backHair.scale.set(1, 1, 0.85);
+    const eyeMat = this.basicMat('#1c2027');
     for (const ez of [0.075, -0.075]) {
-      const eye = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.06), eyeMat);
-      eye.position.set(0.17, 1.72, ez);
-      g.add(eye);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), eyeMat);
+      eye.position.set(0.16, 0.03, ez);
+      head.add(eye);
     }
-    const hair = mk(0.37, 0.13, 0.35, o.hair, -0.02, 1.88, 0);
-    const back = mk(0.16, 0.3, 0.35, o.hair, -0.14, 1.72, 0);
+    const nose = mk(new THREE.BoxGeometry(0.05, 0.06, 0.05), skin, head);
+    nose.position.set(0.18, -0.03, 0);
 
     if (o.hat === 'cap') {
-      mk(0.38, 0.12, 0.37, o.shirt, -0.01, 1.9, 0);
-      mk(0.18, 0.04, 0.3, o.shirt, 0.24, 1.87, 0);
+      const crown = mk(new THREE.SphereGeometry(0.215, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), o.shirt, head);
+      crown.rotation.z = -0.15;
+      const visor = mk(new THREE.CylinderGeometry(0.16, 0.16, 0.025, 12, 1, false, -Math.PI / 2.6, Math.PI / 1.3), o.shirt, head);
+      visor.rotation.x = Math.PI / 2;
+      visor.rotation.z = Math.PI / 2;
+      visor.position.set(0.17, 0.05, 0);
     } else if (o.hat === 'top hat') {
-      mk(0.5, 0.05, 0.48, '#111111', 0, 1.88, 0);
-      mk(0.3, 0.3, 0.3, '#111111', -0.02, 2.04, 0);
+      mk(new THREE.CylinderGeometry(0.24, 0.24, 0.035, 14), '#111111', head).position.y = 0.16;
+      mk(new THREE.CylinderGeometry(0.14, 0.15, 0.3, 14), '#111111', head).position.y = 0.32;
     } else if (o.hat === 'bandana') {
-      mk(0.36, 0.09, 0.34, '#c1121f', -0.01, 1.8, 0);
+      mk(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 14), '#c1121f', head).position.y = 0.08;
     }
 
-    // armi in mano destra, nascoste di default (visibili solo per chi le porta)
-    const gun = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.1, 0.09), this.basicMat('#141414'));
-    gun.position.set(0.08, -0.56, 0);
-    gun.visible = false;
-    armR.add(gun);
-    const bat = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.09, 0.09), this.lambertMat('#7a5a30'));
-    bat.position.set(0.14, -0.6, 0);
-    bat.rotation.z = 0.4;
-    bat.visible = false;
-    armR.add(bat);
+    // arti a due segmenti: anca->ginocchio->piede, spalla->gomito->mano
+    const mkJoint = (parent, x, y) => {
+      const j = new THREE.Group();
+      j.position.set(x, y, 0);
+      parent.add(j);
+      return j;
+    };
+    const mkSeg = (parent, r1, r2, len, color) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, 9), this.lambertMat(color));
+      m.position.y = -len / 2;
+      m.castShadow = true;
+      parent.add(m);
+      return m;
+    };
 
-    g.userData.parts = { legL, legR, armL, armR, body, head, gun, bat };
+    const mkLeg = (sx) => {
+      const hip = mkJoint(g, sx, 0.94);
+      mkSeg(hip, 0.105, 0.085, 0.44, o.pants);
+      const knee = mkJoint(hip, 0, -0.44);
+      mkSeg(knee, 0.085, 0.065, 0.42, o.pants);
+      const shoe = mk(new THREE.BoxGeometry(0.26, 0.09, 0.13), '#1c1c1c', knee);
+      shoe.position.set(0.06, -0.44, 0);
+      return { hip, knee };
+    };
+    const legL = mkLeg(-0.15);
+    const legR = mkLeg(0.15);
+
+    const mkArm = (sx) => {
+      const shoulder = mkJoint(g, sx, 1.46);
+      mkSeg(shoulder, 0.075, 0.06, 0.32, o.shirt);
+      const elbow = mkJoint(shoulder, 0, -0.32);
+      mkSeg(elbow, 0.055, 0.045, 0.3, skin);
+      const hand = mk(new THREE.SphereGeometry(0.06, 8, 6), skin, elbow);
+      hand.position.y = -0.32;
+      return { shoulder, elbow };
+    };
+    const armL = mkArm(-0.3);
+    const armR = mkArm(0.3);
+
+    // armi in mano destra, nascoste di default
+    const gun = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.08), this.basicMat('#141414'));
+    gun.position.set(0.12, -0.34, 0);
+    gun.visible = false;
+    armR.elbow.add(gun);
+    const bat = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.75, 8), this.lambertMat('#7a5a30'));
+    bat.position.set(0.1, -0.42, 0);
+    bat.rotation.z = Math.PI / 2.4;
+    bat.visible = false;
+    armR.elbow.add(bat);
+
+    g.userData.parts = {
+      body, head,
+      hipL: legL.hip, kneeL: legL.knee, hipR: legR.hip, kneeR: legR.knee,
+      shoulderL: armL.shoulder, elbowL: armL.elbow, shoulderR: armR.shoulder, elbowR: armR.elbow,
+      gun, bat,
+    };
     return g;
   },
 
@@ -337,20 +377,51 @@ const World3 = {
     mesh.rotation.order = 'YXZ';
     mesh.rotation.y = -e.angle;
     if (e.state === 'dead') {
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.rotation.z = 0;
-      mesh.position.set(e.x, 0.25, e.z);
+      mesh.rotation.x = 0;
+      mesh.rotation.z = Math.PI / 2;
+      mesh.position.set(e.x, 0.28, e.z);
       return;
     }
     mesh.rotation.x = 0;
     mesh.rotation.z = 0;
+
+    const running = e.state === 'flee' || (e === Game.player && Input.down('shift'));
     const moving = e.state !== 'react';
-    const ph = moving ? Math.sin(e.walkPhase) : 0;
-    if (parts.legL) parts.legL.rotation.x = ph * 0.55;
-    if (parts.legR) parts.legR.rotation.x = -ph * 0.55;
-    if (parts.armL) parts.armL.rotation.x = -ph * 0.45;
-    if (parts.armR) parts.armR.rotation.x = ph * 0.45;
-    mesh.position.set(e.x, moving ? Math.abs(Math.sin(e.walkPhase)) * 0.05 : 0, e.z);
+    const amp = running ? 0.75 : 0.5;
+    const s = Math.sin(e.walkPhase);
+    const s2 = Math.sin(e.walkPhase + Math.PI);
+
+    if (moving) {
+      // gambe: oscillazione avanti/indietro (asse z) + ginocchio che si piega in fase di recupero
+      parts.hipL.rotation.z = s * amp;
+      parts.hipR.rotation.z = s2 * amp;
+      parts.kneeL.rotation.z = -Math.max(0, Math.sin(e.walkPhase + 2.4)) * (running ? 1.1 : 0.75) - 0.06;
+      parts.kneeR.rotation.z = -Math.max(0, Math.sin(e.walkPhase + 2.4 + Math.PI)) * (running ? 1.1 : 0.75) - 0.06;
+      // braccia in opposizione alle gambe, gomito semiflesso
+      parts.shoulderL.rotation.z = s2 * amp * 0.7;
+      parts.shoulderR.rotation.z = s * amp * 0.7;
+      parts.elbowL.rotation.z = 0.3 + Math.max(0, s2) * 0.35;
+      parts.elbowR.rotation.z = 0.3 + Math.max(0, s) * 0.35;
+      mesh.position.set(e.x, Math.abs(Math.cos(e.walkPhase)) * (running ? 0.06 : 0.035), e.z);
+      parts.body.rotation.z = running ? -0.14 : -0.04;
+    } else {
+      // fermo: respiro e micro-oscillazioni
+      const br = Math.sin(Game.elapsed * 2 + e.walkPhase);
+      for (const k of ['hipL', 'hipR', 'kneeL', 'kneeR', 'shoulderL', 'shoulderR', 'elbowL', 'elbowR']) parts[k].rotation.z *= 0.8;
+      parts.shoulderL.rotation.z = 0.06 + br * 0.02;
+      parts.shoulderR.rotation.z = -0.06 - br * 0.02;
+      parts.body.rotation.z = 0;
+      mesh.position.set(e.x, 0.005 + Math.max(0, br) * 0.008, e.z);
+    }
+
+    // mira: braccio destro teso in avanti quando c'è un'arma da fuoco in mano
+    const aiming = e === Game.player ? parts.gun.visible : !!e.aiming;
+    if (aiming) {
+      parts.shoulderR.rotation.z = 1.35;
+      parts.elbowR.rotation.z = 0.12;
+      parts.shoulderL.rotation.z = 1.0;
+      parts.elbowL.rotation.z = 0.9;
+    }
   },
 
   syncViews(dt) {
@@ -383,7 +454,7 @@ const World3 = {
     syncList(Entities.corpses, (c) => {
       const m = this.buildPersonMesh({ skin: c.skin, shirt: c.shirt, pants: '#333', hair: '#222', hat: 'none' });
       m.rotation.order = 'YXZ';
-      m.rotation.x = -Math.PI / 2;
+      m.rotation.z = Math.PI / 2;
       return m;
     });
 
@@ -391,10 +462,10 @@ const World3 = {
     seen.add(pl);
     if (!pl.view) { pl.view = this.buildPersonMesh(pl.custom); pl.view.userData._entity = pl; this.scene.add(pl.view); }
     if (!pl.inCar && !pl.dead) {
-      this.syncPersonView(pl, pl.view);
       const pp = pl.view.userData.parts;
       if (pp.gun) pp.gun.visible = !!WEAPONS[pl.curWeapon].bullet;
       if (pp.bat) pp.bat.visible = pl.curWeapon === 'bat';
+      this.syncPersonView(pl, pl.view);
       pl.view.visible = true;
     } else pl.view.visible = false;
 
