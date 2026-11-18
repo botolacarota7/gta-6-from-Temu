@@ -8,6 +8,14 @@ const World3 = {
   ready: false,
   avatarReady: false,
   avatarLib: {},
+  flowClips: null,
+  RPM_IDS: [
+    '6185a4acfb622cf1cdc49348',
+    '67be034c9fab1c21c486eb14',
+    '62ea7bc28a6d28ec134bbcce',
+  ],
+  XBOT_URL: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Xbot.glb',
+  SOLDIER_URL: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb',
   // ondata 1: piccolo set essenziale caricato subito, poi avatarReady
   AVATAR_TIER1: {
     peds: [
@@ -334,8 +342,60 @@ const World3 = {
     Promise.all(boot).then(() => {
       this.avatarReady = true;
       this.rebuildPeopleViews();
+      this.loadRealisticAvatars(loader);
       this.loadAvatarTier2(loader, loadOne);
     }).catch(() => {});
+  },
+
+  loadRealisticAvatars(loader) {
+    if (!this.flowClips) {
+      loader.load(this.XBOT_URL, (gltf) => {
+        this.flowClips = gltf && gltf.animations ? gltf.animations : null;
+        this.rebuildPeopleViews();
+      }, undefined, () => {});
+    }
+    if (!this.avatarLib.soldier) this.avatarLib.soldier = [];
+    loader.load(this.SOLDIER_URL, (gltf) => {
+      if (gltf && gltf.scene) this.avatarLib.soldier.push({ scene: gltf.scene, clips: gltf.animations || [] });
+      this.rebuildPeopleViews();
+    }, undefined, () => {});
+    for (const id of this.RPM_IDS) {
+      loader.load('https://models.readyplayer.me/' + id + '.glb?meshLod=1&textureAtlas=512', (gltf) => {
+        if (gltf && gltf.scene) {
+          if (!this.avatarLib.rpm) this.avatarLib.rpm = [];
+          this.avatarLib.rpm.push({ scene: gltf.scene, clips: gltf.animations || [] });
+        }
+        this.rebuildPeopleViews();
+      }, undefined, () => {});
+    }
+  },
+
+  retargetFlow(model) {
+    if (!this.flowClips) return [];
+    const bones = new Set();
+    model.traverse((m) => { if (m.isBone) bones.add(m.name); });
+    const out = [];
+    for (const src of this.flowClips) {
+      const tracks = [];
+      for (const t of src.tracks) {
+        const m = /^\.bones\[(.+)\]\.(.+)$/.exec(t.name);
+        if (!m) continue;
+        let base = m[1].replace(/^mixamorig:?/i, '');
+        if (!bones.has(base)) {
+          base = base.replace(/^[^|]*\|/, '');
+          if (!bones.has(base)) continue;
+        }
+        const nt = t.clone();
+        nt.name = '.bones[' + base + '].' + m[2];
+        tracks.push(nt);
+      }
+      if (tracks.length) {
+        const c = new THREE.AnimationClip(src.name, src.duration, tracks);
+        c._retargeted = true;
+        out.push(c);
+      }
+    }
+    return out;
   },
 
   loadAvatarTier2(loader, loadOne) {
@@ -359,7 +419,11 @@ const World3 = {
   },
 
   buildAvatar(kind) {
-    const pool = this.avatarLib[kind];
+    let poolKey = kind;
+    if (kind === 'peds' && this.avatarLib.rpm && this.avatarLib.rpm.length && Math.random() < 0.5) poolKey = 'rpm';
+    if (kind === 'player' && this.avatarLib.rpm && this.avatarLib.rpm.length) poolKey = 'rpm';
+    if ((kind === 'cops' || kind === 'swat') && this.avatarLib.soldier && this.avatarLib.soldier.length && Math.random() < 0.4) poolKey = 'soldier';
+    const pool = this.avatarLib[poolKey];
     if (!pool || !pool.length) return null;
     const proto = choice(pool);
     let model;
@@ -375,7 +439,8 @@ const World3 = {
     const s = 1.9 / h;
     model.scale.setScalar(s);
     model.position.y = -box.min.y * s;
-    const clipBy = (re) => proto.clips.find((c) => re.test(c.name)) || null;
+    const sourceClips = proto.clips.length ? proto.clips : (poolKey === 'rpm' ? this.retargetFlow(model) : []);
+    const clipBy = (re) => sourceClips.find((c) => re.test(c.name)) || null;
     const mixer = new THREE.AnimationMixer(model);
     const acts = {};
     for (const [key, re] of [['idle', /idle/i], ['walk', /walk/i], ['run', /run/i], ['death', /death|die/i]]) {
@@ -388,14 +453,17 @@ const World3 = {
       acts[key] = a;
     }
     let hand = null;
+    let hipBone = null;
     model.traverse((m) => {
-      if (hand || !m.isBone) return;
+      if (!m.isBone) return;
       const clean = m.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (/righthand|handright/.test(clean) || /handr$/.test(clean)) hand = m;
+      if (!hand && (/righthand|handright/.test(clean) || /handr$/.test(clean))) hand = m;
+      if (!hipBone && /hips$|hips/.test(clean)) hipBone = m;
     });
-    const parent = hand || inner;
+    const parent = hand || hipBone || inner;
     const gun = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.08), this.basicMat('#141414'));
-    gun.position.set(0.12, 0, 0);
+    gun.position.set(0.12, 0, 0.06);
+    gun.rotation.y = Math.PI / 2;
     gun.visible = false;
     parent.add(gun);
     const bat = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.75, 8), this.lambertMat('#7a5a30'));
@@ -403,6 +471,7 @@ const World3 = {
     bat.rotation.x = Math.PI / 2.4;
     bat.visible = false;
     parent.add(bat);
+    if (poolKey === 'rpm' && !Object.keys(acts).length) return null;
     const g = new THREE.Group();
     g.add(inner);
     g.userData.avatar = { mixer, acts, deadPlayed: false };
