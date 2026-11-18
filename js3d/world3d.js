@@ -8,7 +8,8 @@ const World3 = {
   ready: false,
   avatarReady: false,
   avatarLib: {},
-  AVATAR_URLS: {
+  // ondata 1: piccolo set essenziale caricato subito, poi avatarReady
+  AVATAR_TIER1: {
     peds: [
       'https://gobkit.com/freebies/human001/Cashier.glb',
       'https://gobkit.com/freebies/human001/FoodCourier.glb',
@@ -16,10 +17,12 @@ const World3 = {
       'https://gobkit.com/freebies/human001/OfficeLady.glb',
       'https://gobkit.com/freebies/human001/Schoolkid.glb',
       'https://gobkit.com/freebies/human001/Shoplifter.glb',
+      'https://gobkit.com/freebies/human002/ItEngineer.glb',
       'https://gobkit.com/freebies/human015/Student.glb',
       'https://gobkit.com/freebies/human015/HotDogVendor.glb',
-      'https://gobkit.com/freebies/human015/DeliveryRider.glb',
+      'https://gobkit.com/freebies/human015/OfficeWorker.glb',
       'https://gobkit.com/freebies/human021/RestaurantGuest.glb',
+      'https://gobkit.com/freebies/human021/Bartender.glb',
     ],
     cops: [
       'https://gobkit.com/freebies/human012/PatrolConstable.glb',
@@ -33,6 +36,65 @@ const World3 = {
     ],
     antonio: ['https://gobkit.com/freebies/human021/Pizzaiolo.glb'],
     player: ['https://gobkit.com/freebies/human014/StreetBrawler.glb'],
+  },
+  // ondata 2: resto del roster, caricato in background a batch
+  AVATAR_TIER2: {
+    peds: [
+      'https://gobkit.com/freebies/human001/StockClerk.glb',
+      'https://gobkit.com/freebies/human001/StoreManager.glb',
+      'https://gobkit.com/freebies/human002/Accountant.glb',
+      'https://gobkit.com/freebies/human002/CompanyCeo.glb',
+      'https://gobkit.com/freebies/human002/OfficeIntern.glb',
+      'https://gobkit.com/freebies/human002/OfficeManager.glb',
+      'https://gobkit.com/freebies/human002/Receptionist.glb',
+      'https://gobkit.com/freebies/human002/SalesRep.glb',
+      'https://gobkit.com/freebies/human008/CabinAttendant.glb',
+      'https://gobkit.com/freebies/human008/AirlineCaptain.glb',
+      'https://gobkit.com/freebies/human008/RampAgent.glb',
+      'https://gobkit.com/freebies/human007/FireChief.glb',
+      'https://gobkit.com/freebies/human007/LadderFirefighter.glb',
+      'https://gobkit.com/freebies/human007/Probie.glb',
+      'https://gobkit.com/freebies/human015/StreetMime.glb',
+      'https://gobkit.com/freebies/human015/DeliveryRider.glb',
+      'https://gobkit.com/freebies/human019/ArtTeacher.glb',
+      'https://gobkit.com/freebies/human019/BandDrummer.glb',
+      'https://gobkit.com/freebies/human019/Cheerleader.glb',
+      'https://gobkit.com/freebies/human019/ClassTeacher.glb',
+      'https://gobkit.com/freebies/human019/SchoolPrincipal.glb',
+      'https://gobkit.com/freebies/human019/Schoolgirl.glb',
+      'https://gobkit.com/freebies/human020/SiteBricklayer.glb',
+      'https://gobkit.com/freebies/human020/SiteCarpenter.glb',
+      'https://gobkit.com/freebies/human020/SiteEngineer.glb',
+      'https://gobkit.com/freebies/human020/SiteForeman.glb',
+      'https://gobkit.com/freebies/human020/SitePainter.glb',
+      'https://gobkit.com/freebies/human020/SiteWelder.glb',
+      'https://gobkit.com/freebies/human021/SousChef.glb',
+      'https://gobkit.com/freebies/human021/Waitress.glb',
+    ],
+    cops: [
+      'https://gobkit.com/freebies/human012/PoliceChief.glb',
+      'https://gobkit.com/freebies/human012/RaidOfficer.glb',
+      'https://gobkit.com/freebies/human012/StationDetective.glb',
+    ],
+    swat: [
+      'https://gobkit.com/freebies/human022/BlackOpsOperator.glb',
+      'https://gobkit.com/freebies/human022/AssaultTeamLeader.glb',
+      'https://gobkit.com/freebies/human022/FrontlineRifleman.glb',
+      'https://gobkit.com/freebies/human022/NightReconScout.glb',
+      'https://gobkit.com/freebies/human004/Rifleman.glb',
+      'https://gobkit.com/freebies/human004/CombatEngineer.glb',
+      'https://gobkit.com/freebies/human004/MachineGunner.glb',
+      'https://gobkit.com/freebies/human004/ArmyOfficer.glb',
+    ],
+    medics: [
+      'https://gobkit.com/freebies/human005/WhiteCoatDoctor.glb',
+      'https://gobkit.com/freebies/human005/ChiefSurgeon.glb',
+      'https://gobkit.com/freebies/human005/Paramedic.glb',
+      'https://gobkit.com/freebies/human005/WardNurse.glb',
+      'https://gobkit.com/freebies/human005/Pharmacist.glb',
+      'https://gobkit.com/freebies/human005/WardOrderly.glb',
+      'https://gobkit.com/freebies/human005/HospitalDirector.glb',
+    ],
   },
 
   init(canvas) {
@@ -255,26 +317,45 @@ const World3 = {
   loadAvatars() {
     if (typeof THREE.GLTFLoader !== 'function' || typeof THREE.SkeletonUtils !== 'function') return;
     const loader = new THREE.GLTFLoader();
-    const jobs = [];
-    for (const kind of Object.keys(this.AVATAR_URLS)) {
-      this.avatarLib[kind] = [];
-      for (const url of this.AVATAR_URLS[kind]) {
-        jobs.push(new Promise((res) => {
-          loader.load(url, (gltf) => {
-            if (gltf && gltf.scene) this.avatarLib[kind].push({ scene: gltf.scene, clips: gltf.animations || [] });
-            res();
-          }, undefined, () => res());
-        }));
-      }
+    const loadOne = (kind, url) => new Promise((res) => {
+      loader.load(url, (gltf) => {
+        if (gltf && gltf.scene) {
+          if (!this.avatarLib[kind]) this.avatarLib[kind] = [];
+          this.avatarLib[kind].push({ scene: gltf.scene, clips: gltf.animations || [] });
+        }
+        res();
+      }, undefined, () => res());
+    });
+    const boot = [];
+    for (const kind of Object.keys(this.AVATAR_TIER1)) {
+      if (!this.avatarLib[kind]) this.avatarLib[kind] = [];
+      for (const url of this.AVATAR_TIER1[kind]) boot.push(loadOne(kind, url));
     }
-    Promise.all(jobs).then(() => {
-      for (const k of Object.keys(this.avatarLib)) if (!this.avatarLib[k].length) delete this.avatarLib[k];
+    Promise.all(boot).then(() => {
       this.avatarReady = true;
-      for (const p of [...Entities.peds, ...Entities.cops]) {
-        if (p.view) { this.scene.remove(p.view); p.view = null; }
-      }
-      if (Game.player && Game.player.view) { this.scene.remove(Game.player.view); Game.player.view = null; }
+      this.rebuildPeopleViews();
+      this.loadAvatarTier2(loader, loadOne);
     }).catch(() => {});
+  },
+
+  loadAvatarTier2(loader, loadOne) {
+    const queue = [];
+    for (const kind of Object.keys(this.AVATAR_TIER2)) {
+      if (!this.avatarLib[kind]) this.avatarLib[kind] = [];
+      for (const url of this.AVATAR_TIER2[kind]) queue.push([kind, url]);
+    }
+    const next = () => {
+      if (!queue.length) { this.rebuildPeopleViews(); return; }
+      Promise.all(queue.splice(0, 4).map((kv) => loadOne(kv[0], kv[1]))).then(next).catch(next);
+    };
+    next();
+  },
+
+  rebuildPeopleViews() {
+    if (!this.scene) return;
+    for (const p of Entities.peds) { if (p.view) { this.scene.remove(p.view); p.view = null; } }
+    for (const c of Entities.cops) { if (c.view) { this.scene.remove(c.view); c.view = null; } }
+    if (Game.player && Game.player.view) { this.scene.remove(Game.player.view); Game.player.view = null; }
   },
 
   buildAvatar(kind) {
@@ -371,7 +452,7 @@ const World3 = {
   },
 
   buildPersonMesh(o, hint) {
-    const kind = hint || (o && o.isAntonio ? 'antonio' : (o && o.gang ? 'gang' : 'ped'));
+    const kind = hint || (o && o.isAntonio ? 'antonio' : (o && o.medic ? 'medics' : (o && o.gang ? 'gang' : 'peds')));
     if (this.avatarReady) {
       const av = this.buildAvatar(kind);
       if (av) return av;
@@ -520,8 +601,8 @@ const World3 = {
     return g;
   },
 
-  buildCopMesh() {
-    return this.buildPersonMesh({ skin: '#e0ac69', shirt: '#1f4e8c', pants: '#16283f', hair: '#2b2b2b', hat: 'cap' }, 'cops');
+  buildCopMesh(c) {
+    return this.buildPersonMesh(c && c.swat ? c : { skin: '#e0ac69', shirt: '#1f4e8c', pants: '#16283f', hair: '#2b2b2b', hat: 'cap' }, c && c.swat ? 'swat' : 'cops');
   },
 
   buildCarMesh(color, len, wid) {
@@ -693,7 +774,7 @@ const World3 = {
       }
     };
     syncList(Entities.peds, (e) => this.buildPersonMesh(e));
-    syncList(Entities.cops, () => this.buildCopMesh());
+    syncList(Entities.cops, (c) => this.buildCopMesh(c));
     syncList(Entities.cars, (c) => this.buildCarMesh(c.color, c.len, c.wid));
     syncList(Entities.pickups, () => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), this.basicMat('#2c8f2c'));
