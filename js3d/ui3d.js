@@ -79,12 +79,14 @@ const UI = {
         }
         cp._preConv = null;
       }
+      cp.activity = null;
       this._conv = null;
     }
   },
 
   startConversation(ped) {
     this.dialogOpen = true;
+    ped.activity = Systems.sceneContext(ped);
     this._conv = { ped, history: [], mem: Memories.ensure(ped), moodShift: 0 };
     const moodKey = ped.state === 'flee' ? 'scared' : (ped.mood || 'neutral');
     const pool = ped.isAntonio ? Dialogue.openings.antonio : (Dialogue.openings[moodKey] || Dialogue.openings.neutral);

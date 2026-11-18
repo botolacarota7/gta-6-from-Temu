@@ -103,6 +103,10 @@ class Person3 {
     this.dest = null;
     this.blockT = 0;
     this.sideDir = 1;
+    this.watchFrom = null;
+    this.suspect = false;
+    this.busted = false;
+    this.gone = false;
     this.dropMoney = randInt(5, 40);
     this.radius = 0.5;
     this.name = opts.name || choice(PED_NAMES);
@@ -126,13 +130,28 @@ class Person3 {
     }
 
     if (this.state === 'flee') {
-      this.runFrom(this.fleeFrom, dt, 6.5);
-      if (this.stateT <= 0) { this.state = 'walk'; this.dest = null; }
+      const fe = this.fleeEnt ? { x: this.fleeEnt.x, z: this.fleeEnt.z } : this.fleeFrom;
+      this.runFrom(fe, dt, 6.5);
+      if (this.stateT <= 0) { this.state = 'walk'; this.dest = null; this.fleeEnt = null; this.suspect = false; }
     } else if (this.state === 'react') {
       if (this.stateT <= 0) this.state = 'walk';
+    } else if (this.state === 'watch') {
+      if (this.watchEnt) this.watchFrom = { x: this.watchEnt.x, z: this.watchEnt.z };
+      if (!this.watchFrom) { this.state = 'walk'; this.dest = null; }
+      else {
+        this.angle = angleTo(this.x, this.z, this.watchFrom.x, this.watchFrom.z);
+        if (this.stateT <= 0) { this.state = 'walk'; this.watchFrom = null; this.dest = null; }
+        else if (Math.random() < 0.0008) this.say(choice(PED_WATCH));
+      }
+    } else if (this.state === 'idle') {
     } else if (this.state === 'idle') {
       if (this.stateT <= 0) { this.state = 'walk'; this.dest = null; }
     } else {
+      if (this.busted) {
+        this.angle = this.escortTo ? angleTo(this.x, this.z, this.escortTo.x, this.escortTo.z) : this.angle;
+        this.walkPhase += dt * 9;
+        return;
+      }
       if (!this.dest) this.pickDestination();
       if (dist(this.x, this.z, this.dest.x, this.dest.z) < 5) {
         this.state = 'idle';
@@ -254,13 +273,83 @@ class Cop3 {
     this.shootT = rand(0.5, 1.5);
     this.bubble = null; this.bubbleT = 0;
     this.radius = 0.5;
+    this.ambient = false;
+    this.pursuit = null;
+    this.pursuitT = 0;
+    this.escorted = false;
+    this._side = 1;
     this.view = null;
   }
 
   say(text, t = 2.2) { this.bubble = text; this.bubbleT = t; }
 
+  walkToPoint(tx, tz, dt, spd) {
+    this.angle = angleTo(this.x, this.z, tx, tz);
+    const nx = this.x + Math.cos(this.angle) * spd * dt;
+    const nz = this.z + Math.sin(this.angle) * spd * dt;
+    if (City3.buildingAt(nx, nz, 0.8)) {
+      const side = this.angle + this._side * Math.PI / 2;
+      this._side = -this._side;
+      this.x = clamp(this.x + Math.cos(side) * spd * dt, 3, City3.size - 3);
+      this.z = clamp(this.z + Math.sin(side) * spd * dt, 3, City3.size - 3);
+    } else {
+      this.x = clamp(nx, 3, City3.size - 3);
+      this.z = clamp(nz, 3, City3.size - 3);
+    }
+  }
+
   update(dt, player) {
     if (this.bubbleT > 0) { this.bubbleT -= dt; if (this.bubbleT <= 0) this.bubble = null; }
+    if (this.pursuit && (this.pursuit.state === 'dead' || this.pursuit.gone)) { this.pursuit = null; this.escorted = false; }
+
+    // inseguimento di un sospetto civile
+    if (this.pursuit && !this.escorted) {
+      this.pursuitT += dt;
+      if (this.pursuitT > 32) {
+        const s = this.pursuit;
+        s.suspect = false; s.fleeEnt = null; s.state = 'walk'; s.stateT = 0; s.dest = null;
+        this.pursuit = null;
+        return;
+      }
+      const s = this.pursuit;
+      const d = dist(this.x, this.z, s.x, s.z);
+      this.aiming = false;
+      if (d > 2.8) {
+        this.walkToPoint(s.x, s.z, dt, 9.5);
+        this.walkPhase += dt * 12;
+        if (Math.random() < 0.006) this.say(choice(COP_CHATTER));
+      } else {
+        s.busted = true;
+        s.fleeEnt = null;
+        s.escortTo = this;
+        s.say(choice(['Vabb\u00e8...', 'Mi arrendo!', 'Non era nemmeno mio!']));
+        this.escorted = true;
+        if (dist(s.x, s.z, player.x, player.z) < 120) UI.toast('La polizia ha raggiunto il sospetto.', 'info');
+      }
+      return;
+    }
+
+    // scorta del sospetto verso la centrale
+    if (this.escorted && this.pursuit) {
+      const s = this.pursuit;
+      const door = City3.doors.find((dr) => dr.type === 'police');
+      const dx = door ? door.x : player.x;
+      const dz = door ? door.y : player.z;
+      this.walkToPoint(dx, dz, dt, 5);
+      this.walkPhase += dt * 10;
+      if (dist(s.x, s.z, this.x, this.z) > 3.5) s.moveToward(this.x, this.z, dt, 4.2);
+      this.pursuitT += dt;
+      if (dist(this.x, this.z, dx, dz) < 9 || this.pursuitT > 26) {
+        const i = Entities.peds.indexOf(s);
+        if (i >= 0) Entities.peds.splice(i, 1);
+        s.gone = true;
+        this.pursuit = null;
+        this.escorted = false;
+        if (dist(this.x, this.z, player.x, player.z) < 110) UI.toast('Arresto eseguito: il sospetto \u00e8 in centrale.', 'info');
+      }
+      return;
+    }
+
     const d = dist(this.x, this.z, player.x, player.z);
     this.angle = angleTo(this.x, this.z, player.x, player.z);
     this.aiming = d <= 40 && !player.dead;
@@ -470,7 +559,7 @@ class Car3 {
     if (this.hp <= 0 && this.state !== 'wreck') this.explode();
   }
 
-  explode() {
+  explode(ambient) {
     this.state = 'wreck';
     this.hp = 0;
     this.color = '#2a2a2a';
@@ -478,20 +567,20 @@ class Car3 {
     spawnParticles3(this.x, this.z, '#ff8c3a', 24, { h: 1, power: 7, up: 8, size: 0.35, life: 0.9 });
     sfx('boom');
     for (const p of Entities.peds) {
-      if (p.state !== 'dead' && dist(this.x, this.z, p.x, p.z) < 14) p.hit(999, { x: this.x, y: this.z }, true);
+      if (p.state !== 'dead' && dist(this.x, this.z, p.x, p.z) < 14) p.hit(999, { x: this.x, y: this.z }, !ambient);
     }
     for (const c of [...Entities.cops]) {
-      if (dist(this.x, this.z, c.x, c.z) < 14) c.hit(80, { x: this.x, y: this.z }, true);
+      if (dist(this.x, this.z, c.x, c.z) < 14) c.hit(80, { x: this.x, y: this.z }, !ambient);
     }
     const pl = Game.player;
-    if (!pl.dead && dist(this.x, this.z, pl.x, pl.z) < 16 && pl.inCar !== this) pl.damage(60, this);
-    if (pl.inCar === this) {
+    if (!ambient && !pl.dead && dist(this.x, this.z, pl.x, pl.z) < 16 && pl.inCar !== this) pl.damage(60, this);
+    if (!ambient && pl.inCar === this) {
       pl.inCar = null;
       pl.x = this.x + Math.cos(this.angle + Math.PI / 2) * 2.4;
       pl.z = this.z + Math.sin(this.angle + Math.PI / 2) * 2.4;
       pl.damage(45, this);
     }
-    Systems.onExplosion(this);
+    if (!ambient) Systems.onExplosion(this);
   }
 
   remove() {
