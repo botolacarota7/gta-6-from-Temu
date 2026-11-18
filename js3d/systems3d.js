@@ -20,10 +20,13 @@ const Systems = {
       } else if (d > 320 && p.gang !== 'rival') Entities.peds.splice(i, 1);
       else if (p.state === 'dead') Entities.peds.splice(i, 1);
     }
-    const wantPeds = 30;
+    const wantPeds = 60;
     let alive = 0;
     for (const p of Entities.peds) if (p.state !== 'dead') alive++;
-    if (alive < wantPeds) this.spawnPedNear(pl);
+    if (alive < wantPeds) {
+      const burst = Math.min(3, wantPeds - alive);
+      for (let i = 0; i < burst; i++) this.spawnPedNear(pl);
+    }
 
     for (const p of Entities.peds) {
       if (p.gang === 'rival' && p.state !== 'dead') {
@@ -53,8 +56,8 @@ const Systems = {
       if (c.state === 'traffic') traffic++;
       if (c.state === 'parked') parked++;
     }
-    if (traffic < 10) this.spawnTrafficCar(pl);
-    if (parked < 8) this.spawnParkedCar(pl);
+    if (traffic < 16) this.spawnTrafficCar(pl);
+    if (parked < 12) this.spawnParkedCar(pl);
 
     const gangDoor = City3.doors.find((d) => d.type === 'gang');
     if (gangDoor) {

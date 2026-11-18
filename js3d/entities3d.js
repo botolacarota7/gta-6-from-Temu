@@ -100,6 +100,9 @@ class Person3 {
     this.hat = Math.random() < 0.2 ? 'cap' : 'none';
     this.gang = opts.gang || null;
     this.target = null;
+    this.dest = null;
+    this.blockT = 0;
+    this.sideDir = 1;
     this.dropMoney = randInt(5, 40);
     this.radius = 0.5;
     this.name = opts.name || choice(PED_NAMES);
@@ -124,21 +127,47 @@ class Person3 {
 
     if (this.state === 'flee') {
       this.runFrom(this.fleeFrom, dt, 6.5);
-      if (this.stateT <= 0) { this.state = 'walk'; this.target = null; }
+      if (this.stateT <= 0) { this.state = 'walk'; this.dest = null; }
     } else if (this.state === 'react') {
       if (this.stateT <= 0) this.state = 'walk';
+    } else if (this.state === 'idle') {
+      if (this.stateT <= 0) { this.state = 'walk'; this.dest = null; }
     } else {
-      if (!this.target || dist(this.x, this.z, this.target.x, this.target.z) < 4) {
-        this.target = City3.randomSidewalkPoint();
-      }
-      this.moveToward(this.target.x, this.target.z, dt, this.speed);
-      if (this.gang === 'pepes' && player.gangRep >= 3 && Math.random() < 0.001) {
-        this.say(choice(PED_GREET_BOSS));
-      } else if (Math.random() < 0.0006) {
-        this.say(choice(PED_IDLE));
+      if (!this.dest) this.pickDestination();
+      if (dist(this.x, this.z, this.dest.x, this.dest.z) < 5) {
+        this.state = 'idle';
+        this.stateT = rand(2, 6);
+        this.dest = null;
+      } else {
+        this.moveToward(this.dest.x, this.dest.z, dt, this.speed);
+        if (this.gang === 'pepes' && player.gangRep >= 3 && Math.random() < 0.001) {
+          this.say(choice(PED_GREET_BOSS));
+        } else if (Math.random() < 0.0006) {
+          this.say(choice(PED_IDLE));
+        }
       }
     }
     this.walkPhase += dt * 9;
+  }
+
+  pickDestination() {
+    this.blockT = 0;
+    this.sideDir = Math.random() < 0.5 ? 1 : -1;
+    if (City3.doors.length && Math.random() < 0.4) {
+      const d = choice(City3.doors);
+      if (dist(this.x, this.z, d.x, d.y) > 60) {
+        this.dest = { x: d.x + rand(-6, 6), z: d.y + rand(-6, 6) };
+        return;
+      }
+    }
+    let best = null;
+    let bestD = -1;
+    for (let i = 0; i < 6; i++) {
+      const p = City3.randomSidewalkPoint();
+      const dd = dist(this.x, this.z, p.x, p.z);
+      if (dd > bestD) { bestD = dd; best = p; }
+    }
+    this.dest = best;
   }
 
   moveToward(tx, tz, dt, spd) {
@@ -147,7 +176,16 @@ class Person3 {
     this.angle = angleTo(this.x, this.z, tx, tz);
     const nx = this.x + Math.cos(this.angle) * spd * dt;
     const nz = this.z + Math.sin(this.angle) * spd * dt;
-    if (City3.buildingAt(nx, nz, 0.8)) { this.target = null; return; }
+    if (City3.buildingAt(nx, nz, 0.8)) {
+      this.blockT += dt;
+      if (this.blockT > 2) { this.blockT = 0; this.dest = null; return; }
+      this.angle += this.sideDir * Math.PI / 2;
+      this.sideDir = -this.sideDir;
+      this.x = clamp(this.x + Math.cos(this.angle) * spd * dt, 3, City3.size - 3);
+      this.z = clamp(this.z + Math.sin(this.angle) * spd * dt, 3, City3.size - 3);
+      return;
+    }
+    this.blockT = 0;
     this.x = clamp(nx, 3, City3.size - 3);
     this.z = clamp(nz, 3, City3.size - 3);
   }
