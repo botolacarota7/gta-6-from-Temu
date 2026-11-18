@@ -115,6 +115,8 @@ const World3 = {
       }
     }
 
+    this.buildRoadMarkings();
+
     const boxGeo = new THREE.BoxGeometry(1, 1, 1);
     for (const b of City3.buildings) {
       const tex = this.makeWindowTexture(b.color);
@@ -176,29 +178,175 @@ const World3 = {
     }
   },
 
-  // ---------- mesh personaggi ----------
+  // ---------- mesh personaggi (corpo smussato, articolazioni con gomiti e ginocchia) ----------
+  buildRoadMarkings() {
+    const m4 = new THREE.Matrix4();
+    const dashMats = [];
+    const crossMats = [];
+    for (let i = 0; i < City3.GRID; i++) {
+      const a0 = City3.laneCoords[i] + City3.ROAD / 2 + 3;
+      const a1 = City3.laneCoords[i + 1] - City3.ROAD / 2 - 3;
+      for (let j = 0; j <= City3.GRID; j++) {
+        const c = City3.laneCoords[j];
+        for (let p = a0; p <= a1; p += 6) {
+          dashMats.push(m4.identity().clone().setPosition(p, 0.035, c));
+          dashMats.push(m4.makeRotationY(Math.PI / 2).clone().setPosition(c, 0.035, p));
+        }
+      }
+    }
+    for (const cx of City3.laneCoords) {
+      for (const cz of City3.laneCoords) {
+        for (const s of [-1, 1]) {
+          for (let w = -7.5; w <= 7.5; w += 1.7) {
+            crossMats.push(m4.identity().clone().setPosition(cx + s * 10.2, 0.035, cz + w));
+            crossMats.push(m4.makeRotationY(Math.PI / 2).clone().setPosition(cx + w, 0.035, cz + s * 10.2));
+          }
+        }
+      }
+    }
+    const dashes = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(2.2, 0.02, 0.25),
+      new THREE.MeshBasicMaterial({ color: 0xcccccc }),
+      dashMats.length
+    );
+    dashMats.forEach((m, i) => dashes.setMatrixAt(i, m));
+    dashes.instanceMatrix.needsUpdate = true;
+    this.scene.add(dashes);
+    const crosses = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(2.4, 0.02, 0.6),
+      new THREE.MeshBasicMaterial({ color: 0xdddddd }),
+      crossMats.length
+    );
+    crossMats.forEach((m, i) => crosses.setMatrixAt(i, m));
+    crosses.instanceMatrix.needsUpdate = true;
+    this.scene.add(crosses);
+  },
+
   buildPersonMesh(o) {
     const g = new THREE.Group();
-    const mk = (w, h, d, color, x, y, z) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), this.lambertMat(color));
-      m.position.set(x, y, z);
+    const skin = o.skin || '#e0ac69';
+    const mk = (geo, color, parent) => {
+      const m = new THREE.Mesh(geo, this.lambertMat(color));
       m.castShadow = true;
-      g.add(m);
+      (parent || g).add(m);
       return m;
     };
-    const legL = mk(0.22, 0.8, 0.24, o.pants, -0.14, 0.4, 0);
-    const legR = mk(0.22, 0.8, 0.24, o.pants, 0.14, 0.4, 0);
-    const body = mk(0.5, 0.6, 0.3, o.shirt, 0, 1.1, 0);
-    const armL = mk(0.14, 0.55, 0.16, o.skin, -0.34, 1.15, 0);
-    const armR = mk(0.14, 0.55, 0.16, o.skin, 0.34, 1.15, 0);
-    const head = mk(0.32, 0.32, 0.32, o.skin, 0, 1.58, 0);
-    const hair = mk(0.36, 0.12, 0.36, o.hair, 0, 1.76, 0);
-    let hat = null;
-    if (o.hat === 'cap') hat = mk(0.38, 0.12, 0.38, o.shirt, 0, 1.84, 0);
-    else if (o.hat === 'top hat') { hat = mk(0.34, 0.3, 0.34, '#111111', 0, 1.95, 0); mk(0.44, 0.05, 0.44, '#111111', 0, 1.8, 0); }
-    else if (o.hat === 'bandana') hat = mk(0.36, 0.08, 0.36, '#c1121f', 0, 1.7, 0);
-    g.userData.parts = { legL, legR, armL, armR, body, head, hat };
-    g.userData.pose = {};
+
+    // torso conico + cintura + spalle + collo
+    const body = new THREE.Group();
+    body.position.y = 1.28;
+    g.add(body);
+    const torso = mk(new THREE.CylinderGeometry(0.27, 0.18, 0.64, 14), o.shirt, body);
+    torso.position.y = 0;
+    const belt = mk(new THREE.CylinderGeometry(0.185, 0.185, 0.06, 12), '#222', body);
+    belt.position.y = -0.3;
+    for (const sx of [-0.27, 0.27]) mk(new THREE.SphereGeometry(0.115, 10, 8), o.shirt, body).position.set(sx, 0.24, 0);
+    const neck = mk(new THREE.CylinderGeometry(0.065, 0.075, 0.12, 8), skin, body);
+    neck.position.y = 0.37;
+
+    // testa sferica con volto dettagliato: occhi con pupille, sopracciglia, naso e bocca
+    const head = new THREE.Group();
+    head.position.y = 1.76;
+    g.add(head);
+    mk(new THREE.SphereGeometry(0.16, 16, 14), skin, head);
+    const hairCap = mk(new THREE.SphereGeometry(0.175, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.58), o.hair, head);
+    hairCap.rotation.z = -0.4;
+    const backHair = mk(new THREE.SphereGeometry(0.14, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.8), o.hair, head);
+    backHair.position.set(-0.055, -0.01, 0);
+    backHair.rotation.z = Math.PI / 2;
+    backHair.scale.set(1, 1, 0.85);
+    const fringe = mk(new THREE.BoxGeometry(0.05, 0.05, 0.2), o.hair, head);
+    fringe.position.set(0.12, 0.1, 0);
+    const eyeWhite = this.basicMat('#f4f4f0');
+    const pupilMat = this.basicMat('#20242c');
+    for (const ez of [0.062, -0.062]) {
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), eyeWhite);
+      ball.position.set(0.125, 0.02, ez);
+      head.add(ball);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.015, 8, 6), pupilMat);
+      pupil.position.set(0.148, 0.02, ez);
+      head.add(pupil);
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.014, 0.055), this.lambertMat(o.hair));
+      brow.position.set(0.14, 0.075, ez);
+      head.add(brow);
+    }
+    const nose = mk(new THREE.BoxGeometry(0.055, 0.055, 0.045), skin, head);
+    nose.position.set(0.16, -0.035, 0);
+    const mouth = mk(new THREE.BoxGeometry(0.015, 0.012, 0.06), this.basicMat('#7a3b3b'));
+    mouth.position.set(0.152, -0.095, 0);
+
+    if (o.hat === 'cap') {
+      const crown = mk(new THREE.SphereGeometry(0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), o.shirt, head);
+      crown.rotation.z = -0.15;
+      const visor = mk(new THREE.CylinderGeometry(0.14, 0.14, 0.022, 12, 1, false, -Math.PI / 2.6, Math.PI / 1.3), o.shirt, head);
+      visor.rotation.x = Math.PI / 2;
+      visor.rotation.z = Math.PI / 2;
+      visor.position.set(0.15, 0.04, 0);
+    } else if (o.hat === 'top hat') {
+      mk(new THREE.CylinderGeometry(0.2, 0.2, 0.03, 14), '#111111', head).position.y = 0.15;
+      mk(new THREE.CylinderGeometry(0.115, 0.125, 0.28, 14), '#111111', head).position.y = 0.3;
+    } else if (o.hat === 'bandana') {
+      mk(new THREE.CylinderGeometry(0.17, 0.17, 0.07, 14), '#c1121f', head).position.y = 0.07;
+    }
+
+    // arti a due segmenti: anca->ginocchio->piede, spalla->gomito->mano
+    const mkJoint = (parent, x, y) => {
+      const j = new THREE.Group();
+      j.position.set(x, y, 0);
+      parent.add(j);
+      return j;
+    };
+    const mkSeg = (parent, r1, r2, len, color) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, 9), this.lambertMat(color));
+      m.position.y = -len / 2;
+      m.castShadow = true;
+      parent.add(m);
+      return m;
+    };
+
+    const mkLeg = (sx) => {
+      const hip = mkJoint(g, sx, 0.98);
+      mkSeg(hip, 0.11, 0.085, 0.48, o.pants);
+      const knee = mkJoint(hip, 0, -0.48);
+      mk(new THREE.SphereGeometry(0.085, 8, 6), o.pants, knee);
+      mkSeg(knee, 0.08, 0.06, 0.44, o.pants);
+      const shoe = mk(new THREE.BoxGeometry(0.27, 0.09, 0.13), '#1c1c1c', knee);
+      shoe.position.set(0.06, -0.46, 0);
+      return { hip, knee };
+    };
+    const legL = mkLeg(-0.15);
+    const legR = mkLeg(0.15);
+
+    const mkArm = (sx) => {
+      const shoulder = mkJoint(g, sx, 1.5);
+      mkSeg(shoulder, 0.075, 0.06, 0.34, o.shirt);
+      const elbow = mkJoint(shoulder, 0, -0.34);
+      mk(new THREE.SphereGeometry(0.058, 8, 6), o.shirt, elbow);
+      mkSeg(elbow, 0.052, 0.042, 0.32, skin);
+      const hand = mk(new THREE.SphereGeometry(0.058, 8, 6), skin, elbow);
+      hand.position.y = -0.34;
+      return { shoulder, elbow };
+    };
+    const armL = mkArm(-0.31);
+    const armR = mkArm(0.31);
+
+    // armi in mano destra, nascoste di default
+    const gun = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.08), this.basicMat('#141414'));
+    gun.position.set(0.12, -0.34, 0);
+    gun.visible = false;
+    armR.elbow.add(gun);
+    const bat = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.75, 8), this.lambertMat('#7a5a30'));
+    bat.position.set(0.1, -0.42, 0);
+    bat.rotation.z = Math.PI / 2.4;
+    bat.visible = false;
+    armR.elbow.add(bat);
+
+    g.userData.parts = {
+      body, head,
+      hipL: legL.hip, kneeL: legL.knee, hipR: legR.hip, kneeR: legR.knee,
+      shoulderL: armL.shoulder, elbowL: armL.elbow, shoulderR: armR.shoulder, elbowR: armR.elbow,
+      gun, bat,
+    };
     return g;
   },
 
@@ -208,28 +356,52 @@ const World3 = {
 
   buildCarMesh(color, len, wid) {
     const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(len, 0.6, wid), this.lambertMat(color));
-    body.position.y = 0.55;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(len, 0.5, wid), this.lambertMat(color));
+    body.position.y = 0.52;
     body.castShadow = true;
     g.add(body);
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(len * 0.45, 0.5, wid * 0.85), this.lambertMat('#222831'));
-    cabin.position.set(-len * 0.08, 1.05, 0);
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(len * 0.92, 0.18, wid * 0.96), this.lambertMat('#26262b'));
+    skirt.position.y = 0.28;
+    g.add(skirt);
+    const glass = this.lambertMat('#1c2a38');
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(len * 0.44, 0.4, wid * 0.84), glass);
+    cabin.position.set(-len * 0.06, 0.97, 0);
+    cabin.castShadow = true;
     g.add(cabin);
-    const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 10);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(len * 0.46, 0.06, wid * 0.86), this.lambertMat(color));
+    roof.position.set(-len * 0.06, 1.2, 0);
+    g.add(roof);
+    for (const bx of [1, -1]) {
+      const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, wid * 0.98), this.lambertMat('#33343a'));
+      bumper.position.set(bx * (len / 2 + 0.03), 0.38, 0);
+      g.add(bumper);
+    }
+    const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.24, 12);
     const wheelMat = this.lambertMat('#151515');
+    const hubGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.26, 8);
+    const hubMat = this.lambertMat('#8a8f96');
     for (const [wx, wz] of [[len * 0.32, wid / 2], [len * 0.32, -wid / 2], [-len * 0.32, wid / 2], [-len * 0.32, -wid / 2]]) {
       const w = new THREE.Mesh(wheelGeo, wheelMat);
       w.rotation.x = Math.PI / 2;
       w.position.set(wx, 0.32, wz);
       g.add(w);
+      const hub = new THREE.Mesh(hubGeo, hubMat);
+      hub.rotation.x = Math.PI / 2;
+      hub.position.set(wx, 0.32, wz);
+      g.add(hub);
     }
     const lightMat = new THREE.MeshBasicMaterial({ color: 0x554d33 });
+    const tailMat = new THREE.MeshBasicMaterial({ color: 0x7a1f1f });
     for (const wz of [wid * 0.3, -wid * 0.3]) {
-      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.25), lightMat);
-      hl.position.set(len / 2, 0.6, wz);
+      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.24), lightMat);
+      hl.position.set(len / 2 + 0.02, 0.6, wz);
       g.add(hl);
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.11, 0.2), tailMat);
+      tl.position.set(-len / 2 - 0.02, 0.6, wz);
+      g.add(tl);
     }
     g.userData.lightMat = lightMat;
+    g.userData.tailMat = tailMat;
     return g;
   },
 
@@ -285,23 +457,55 @@ const World3 = {
 
   // ---------- sincronizzazione mesh ----------
   syncPersonView(e, mesh) {
-    mesh.position.set(e.x, 0, e.z);
-    mesh.rotation.y = -e.angle;
     const parts = mesh.userData.parts;
-    const dead = e.state === 'dead';
-    if (dead) {
+    mesh.rotation.order = 'YXZ';
+    mesh.rotation.y = -e.angle;
+    if (e.state === 'dead') {
+      mesh.rotation.x = 0;
       mesh.rotation.z = Math.PI / 2;
-      mesh.position.y = 0.4;
+      mesh.position.set(e.x, 0.28, e.z);
       return;
     }
+    mesh.rotation.x = 0;
     mesh.rotation.z = 0;
-    mesh.position.y = 0;
+
+    const running = e.state === 'flee' || (e === Game.player && Input.down('shift'));
     const moving = e.state !== 'react';
-    const ph = moving ? Math.sin(e.walkPhase) : 0;
-    if (parts.legL) parts.legL.rotation.x = ph * 0.6;
-    if (parts.legR) parts.legR.rotation.x = -ph * 0.6;
-    if (parts.armL) parts.armL.rotation.x = -ph * 0.5;
-    if (parts.armR) parts.armR.rotation.x = ph * 0.5;
+    const amp = running ? 0.75 : 0.5;
+    const s = Math.sin(e.walkPhase);
+    const s2 = Math.sin(e.walkPhase + Math.PI);
+
+    if (moving) {
+      // gambe: oscillazione avanti/indietro (asse z) + ginocchio che si piega in fase di recupero
+      parts.hipL.rotation.z = s * amp;
+      parts.hipR.rotation.z = s2 * amp;
+      parts.kneeL.rotation.z = -Math.max(0, Math.sin(e.walkPhase + 2.4)) * (running ? 1.1 : 0.75) - 0.06;
+      parts.kneeR.rotation.z = -Math.max(0, Math.sin(e.walkPhase + 2.4 + Math.PI)) * (running ? 1.1 : 0.75) - 0.06;
+      // braccia in opposizione alle gambe, gomito semiflesso
+      parts.shoulderL.rotation.z = s2 * amp * 0.7;
+      parts.shoulderR.rotation.z = s * amp * 0.7;
+      parts.elbowL.rotation.z = 0.3 + Math.max(0, s2) * 0.35;
+      parts.elbowR.rotation.z = 0.3 + Math.max(0, s) * 0.35;
+      mesh.position.set(e.x, Math.abs(Math.cos(e.walkPhase)) * (running ? 0.06 : 0.035), e.z);
+      parts.body.rotation.z = running ? -0.14 : -0.04;
+    } else {
+      // fermo: respiro e micro-oscillazioni
+      const br = Math.sin(Game.elapsed * 2 + e.walkPhase);
+      for (const k of ['hipL', 'hipR', 'kneeL', 'kneeR', 'shoulderL', 'shoulderR', 'elbowL', 'elbowR']) parts[k].rotation.z *= 0.8;
+      parts.shoulderL.rotation.z = 0.06 + br * 0.02;
+      parts.shoulderR.rotation.z = -0.06 - br * 0.02;
+      parts.body.rotation.z = 0;
+      mesh.position.set(e.x, 0.005 + Math.max(0, br) * 0.008, e.z);
+    }
+
+    // mira: braccio destro teso in avanti quando c'è un'arma da fuoco in mano
+    const aiming = e === Game.player ? parts.gun.visible : !!e.aiming;
+    if (aiming) {
+      parts.shoulderR.rotation.z = 1.35;
+      parts.elbowR.rotation.z = 0.12;
+      parts.shoulderL.rotation.z = 1.0;
+      parts.elbowL.rotation.z = 0.9;
+    }
   },
 
   syncViews(dt) {
@@ -333,6 +537,7 @@ const World3 = {
     });
     syncList(Entities.corpses, (c) => {
       const m = this.buildPersonMesh({ skin: c.skin, shirt: c.shirt, pants: '#333', hair: '#222', hat: 'none' });
+      m.rotation.order = 'YXZ';
       m.rotation.z = Math.PI / 2;
       return m;
     });
@@ -341,6 +546,9 @@ const World3 = {
     seen.add(pl);
     if (!pl.view) { pl.view = this.buildPersonMesh(pl.custom); pl.view.userData._entity = pl; this.scene.add(pl.view); }
     if (!pl.inCar && !pl.dead) {
+      const pp = pl.view.userData.parts;
+      if (pp.gun) pp.gun.visible = !!WEAPONS[pl.curWeapon].bullet;
+      if (pp.bat) pp.bat.visible = pl.curWeapon === 'bat';
       this.syncPersonView(pl, pl.view);
       pl.view.visible = true;
     } else pl.view.visible = false;
@@ -367,7 +575,7 @@ const World3 = {
       p.view.visible = true;
     }
     for (const c of Entities.corpses) {
-      c.view.position.set(c.x, 0.35, c.z);
+      c.view.position.set(c.x, 0.25, c.z);
       c.view.rotation.y = -c.angle;
       c.view.visible = c.t > 2;
     }
