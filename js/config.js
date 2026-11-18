@@ -46,6 +46,13 @@ const PED_IDLE = [
   'Io l\'ho comprata da Temu, 4 euro.', 'Bella giornata!', 'Il tram è in ritardo, come sempre.',
 ];
 
+const PED_WATCH = [
+  'Hai visto quello?!', 'Mamma mia, che scena!', 'Chiamiamo qualcuno... no, aspetta.',
+  'Devo postare la storia di questo!', 'Mio cugino guidava così anche lui...',
+  'Che casino, il traffico è fermo adesso.', 'Speriamo non esploda...',
+  'Stavolta ho visto tutto io.', 'Un poliziotto sta correndo, corriamo a vedere!',
+];
+
 const COP_CHATTER = [
   'Fermati!!', 'Polizia! Non muoverti!', 'Mani in alto!', 'Ti ho visto, mascalzone!',
 ];

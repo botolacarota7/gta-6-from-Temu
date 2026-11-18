@@ -17,7 +17,7 @@ const Systems = {
       const d = dist(p.x, p.z, pl.x, pl.z);
       if (p.isAntonio) {
         if (d > 460) { p.x = pl.x + rand(-80, 80); p.z = pl.z + rand(-80, 80); }
-      } else if (d > 320 && p.gang !== 'rival') Entities.peds.splice(i, 1);
+      } else if (d > 320 && p.gang !== 'rival') { p.gone = true; Entities.peds.splice(i, 1); }
       else if (p.state === 'dead') Entities.peds.splice(i, 1);
     }
     const wantPeds = 60;
@@ -116,8 +116,47 @@ const Systems = {
     }
 
     for (const c of [...Entities.cops]) c.update(dt, pl);
+    for (let i = Entities.cops.length - 1; i >= 0; i--) {
+      const c = Entities.cops[i];
+      if (c.ambient && !c.pursuit && !c.escorted && dist(c.x, c.z, pl.x, pl.z) > 160) Entities.cops.splice(i, 1);
+    }
+    const regular = Entities.cops.filter((c) => !c.ambient).length;
     const desiredCops = pl.wanted === 0 ? 0 : Math.min(6, pl.wanted + 1);
-    if (Entities.cops.length < desiredCops && !pl.dead) this.spawnCop(pl);
+    if (regular < desiredCops && !pl.dead) this.spawnCop(pl);
+
+    // inseguimenti della polizia verso bot sospetti
+    if (pl.wanted === 0 && !pl.dead) {
+      this.chaseCd = Math.max(0, (this.chaseCd == null ? rand(15, 35) : this.chaseCd) - dt);
+      const s = this.suspect;
+      if (this.chaseCd <= 0 && (!s || s.gone || s.state === 'dead' || s.busted)) {
+        this.chaseCd = rand(45, 90);
+        const cand = Entities.peds.filter((p) => p.state === 'walk' && !p.medic && !p.isAntonio && p.gang !== 'rival' && !p.suspect && dist(p.x, p.z, pl.x, pl.z) < 150);
+        if (cand.length) {
+          const t = choice(cand);
+          this.suspect = t;
+          t.suspect = true;
+          t.state = 'flee';
+          t.stateT = 35;
+          t.say(choice(['Non ho fatto niente!', 'Il portafoglio non \u00e8 mio!!', 'Si sbagliano tutti, io sono innocente!']));
+          const cop = new Cop3(clamp(t.x + rand(-55, 55), 10, City3.size - 10), clamp(t.z + rand(-55, 55), 10, City3.size - 10));
+          cop.ambient = true;
+          cop.pursuit = t;
+          cop.say('FERMATI! Polizia!');
+          t.fleeEnt = cop;
+          Entities.cops.push(cop);
+          this.lastIncident = { x: t.x, z: t.z, kind: 'un inseguimento della polizia', until: Game.elapsed + 30 };
+          this.attractPeds(t.x, t.z, 6, 80);
+          if (dist(t.x, t.z, pl.x, pl.z) < 130) UI.toast('La polizia sta inseguendo un sospetto!', 'info');
+        }
+      }
+    }
+
+    // incidenti stradali casuali e curiosi che si fermano a guardare
+    this.eventCd = Math.max(0, (this.eventCd == null ? rand(10, 25) : this.eventCd) - dt);
+    if (this.eventCd <= 0) {
+      this.eventCd = rand(28, 60);
+      this.urbanIncident(pl);
+    }
 
     if (pl.wanted > 0) {
       let copNear = false;
@@ -311,6 +350,71 @@ const Systems = {
     const best = this.nearestTalkablePed();
     if (best) UI.startConversation(best);
     else UI.toast('Non c\u00e8 nessuno abbastanza vicino per parlare.', 'bad');
+  },
+
+  // incidente stradale casuale tra due auto del traffico
+  urbanIncident(pl) {
+    if (pl.dead) return;
+    const cars = Entities.cars.filter((c) => c.state === 'traffic' && dist(c.x, c.z, pl.x, pl.z) < 170);
+    if (cars.length < 2) return;
+    const a = choice(cars);
+    const others = cars.filter((c) => c !== a && dist(c.x, c.z, a.x, a.z) < 30);
+    if (!others.length) return;
+    const b = choice(others);
+    const sx = (a.x + b.x) / 2;
+    const sz = (a.z + b.z) / 2;
+    a.hp -= rand(15, 55);
+    b.hp -= rand(15, 55);
+    a.speed *= 0.15;
+    b.speed *= 0.15;
+    a.angle += 0.3;
+    spawnParticles3(sx, sz, '#dddddd', 8, { h: 1, power: 3, up: 2, size: 0.3, life: 0.8 });
+    sfx('crash');
+    let destroyed = false;
+    if (a.hp <= 0 && a.state !== 'wreck') { a.explode(true); destroyed = true; }
+    else if (b.hp <= 0 && b.state !== 'wreck') { b.explode(true); destroyed = true; }
+    if (dist(sx, sz, pl.x, pl.z) < 120) UI.toast(destroyed ? 'Incidente stradale: auto in fiamme!' : 'Incidente stradale in vista.', 'bad');
+    this.lastIncident = { x: sx, z: sz, kind: 'un incidente stradale', until: Game.elapsed + 40 };
+    this.attractPeds(sx, sz, 9, 80);
+  },
+
+  // contesto vivo per i dialoghi AI
+  sceneContext(ped) {
+    const parts = [];
+    let nearest = null;
+    let nd = 60;
+    for (const d of City3.doors) {
+      const dd = dist(ped.x, ped.z, d.x, d.y);
+      if (dd < nd) { nd = dd; nearest = d; }
+    }
+    if (nearest && nearest.label) parts.push('vi trovate vicino a: ' + nearest.label);
+    const inc = this.lastIncident;
+    if (inc && Game.elapsed < inc.until && dist(ped.x, ped.z, inc.x, inc.z) < 100) {
+      parts.push('proprio adesso c\u2019e'  + inc.kind + ' vicino a voi: commenta quella scena');
+    }
+    const s = this.suspect;
+    if (s && !s.gone && !s.busted && s.state !== 'dead' && dist(ped.x, ped.z, s.x, s.z) < 80) {
+      parts.push('la polizia sta inseguendo un sospetto di nome ' + s.name + ' ed è una scena mozzafiato');
+    }
+    if (ped.state === 'watch') parts.push('sei fermo a guardare un evento strano per strada');
+    return parts.join('; ');
+  },
+
+  // eventi urbani: curiosi che si fermano a guardare
+  attractPeds(x, z, maxP, range) {
+    let n = 0;
+    for (const p of Entities.peds) {
+      if (n >= maxP) break;
+      if ((p.state !== 'walk' && p.state !== 'idle') || p.gang === 'rival' || p.isAntonio || p.medic || p.suspect) continue;
+      if (dist(p.x, p.z, x, z) < range && Math.random() < 0.7) {
+        p.state = 'watch';
+        p.watchFrom = { x, z };
+        p.stateT = rand(4, 10);
+        p.dest = null;
+        if (Math.random() < 0.5) p.say(choice(PED_WATCH));
+        n++;
+      }
+    }
   },
 
   spawnAntonio() {
