@@ -128,6 +128,11 @@ class Person3 {
       this.pendingSay.t -= dt;
       if (this.pendingSay.t <= 0) { this.say(this.pendingSay.text); this.pendingSay = null; }
     }
+    if (this.shooter && this.foe && this.foe.state !== 'dead' && this.state !== 'flee') {
+      this.angle = angleTo(this.x, this.z, this.foe.x, this.foe.z);
+      this.walkPhase += dt * 6;
+      return;
+    }
 
     if (this.state === 'flee') {
       const fe = this.fleeEnt ? { x: this.fleeEnt.x, z: this.fleeEnt.z } : this.fleeFrom;
@@ -143,7 +148,6 @@ class Person3 {
         if (this.stateT <= 0) { this.state = 'walk'; this.watchFrom = null; this.dest = null; }
         else if (Math.random() < 0.0008) this.say(choice(PED_WATCH));
       }
-    } else if (this.state === 'idle') {
     } else if (this.state === 'idle') {
       if (this.stateT <= 0) { this.state = 'walk'; this.dest = null; }
     } else {
@@ -242,7 +246,7 @@ class Person3 {
   hit(dmg, from, isPlayerSource) {
     if (this.state === 'dead') return false;
     this.hp -= dmg;
-    this.scare(from, 8);
+    if (!this.shooter) this.scare(from, 8);
     spawnParticles3(this.x, this.z, '#b01818', 5, { power: 2, up: 2.5, size: 0.1, life: 0.45 });
     if (this.hp <= 0) {
       this.die();
@@ -505,7 +509,37 @@ class Car3 {
     this.angle = Math.atan2(t.z - this.z, t.x - this.x);
   }
 
+  updateChase(dt) {
+    const t = this.chasing;
+    if (!t || t.state !== 'traffic') {
+      this.chasing = null;
+      this.cruise = this._cruise || rand(10, 16);
+      return;
+    }
+    const dx = t.x - this.x, dz = t.z - this.z;
+    const dd = Math.sqrt(dx * dx + dz * dz);
+    const desired = Math.atan2(dz, dx);
+    this.angle += normAngle(desired - this.angle) * clamp(dt * 5, 0, 1);
+    this.speed = lerp(this.speed, Math.min(26, dd * 2 + 6), dt * 2);
+    const nx = this.x + Math.cos(this.angle) * this.speed * dt;
+    const nz = this.z + Math.sin(this.angle) * this.speed * dt;
+    if (City3.buildingAt(nx, nz, Math.max(this.len, this.wid) / 2 * 0.75)) {
+      this.angle += (this.sideDir || 1) * Math.PI / 4 * dt * 8;
+    } else {
+      this.x = clamp(nx, 4, City3.size - 4);
+      this.z = clamp(nz, 4, City3.size - 4);
+    }
+    this.steerVis = clamp(normAngle(desired - this.angle) * 2, -0.5, 0.5);
+    if (dd < 3.4) {
+      spawnParticles3((this.x + t.x) / 2, (this.z + t.z) / 2, '#ffcc55', 5, { power: 3, up: 2, size: 0.12, life: 0.4 });
+      this.speed *= 0.7;
+      if (Math.random() < 0.02) sfx('crash');
+    }
+    this.checkPedHits();
+  }
+
   updateTraffic(dt) {
+    if (this.chasing) { this.updateChase(dt); return; }
     const aheadX = this.x + Math.cos(this.angle) * 9;
     const aheadZ = this.z + Math.sin(this.angle) * 9;
     let blocked = false;
@@ -514,7 +548,7 @@ class Car3 {
       if (dist2(aheadX, aheadZ, c.x, c.z) < 36) { blocked = true; break; }
     }
     if (!blocked && !Game.player.inCar && dist2(aheadX, aheadZ, Game.player.x, Game.player.z) < 25) blocked = true;
-    this.speed = lerp(this.speed, blocked ? 0 : this.cruise, dt * 3);
+    this.speed = lerp(this.speed, blocked ? 0 : (this.chased ? 22 : this.cruise), dt * 3);
 
     const dx = this.tx - this.x, dz = this.tz - this.z;
     const dd = Math.sqrt(dx * dx + dz * dz);
@@ -637,4 +671,22 @@ function npcShoot(shooter, angle, dmg) {
     x2: ex, y2: 1.2, z2: ez, t: 0.1, vx: 0, vy: 0,
   });
   sfx('copshot');
+}
+
+// ---------- Spari tra bot (non toccano il player) ----------
+function botShoot(shooter, target, dmg) {
+  const angle = angleTo(shooter.x, shooter.z, target.x, target.z);
+  let ex = shooter.x + Math.cos(angle) * 55;
+  let ez = shooter.z + Math.sin(angle) * 55;
+  if (Math.random() < 0.45 && target.state !== 'dead') {
+    ex = target.x; ez = target.z;
+    target.hit(dmg, shooter, false);
+  } else {
+    ex = target.x + rand(-3, 3); ez = target.z + rand(-3, 3);
+  }
+  Entities.bullets.push({
+    x1: shooter.x + Math.cos(angle) * 0.8, y1: 1.4, z1: shooter.z + Math.sin(angle) * 0.8,
+    x2: ex, y2: 1.2, z2: ez, t: 0.1, vx: 0, vy: 0,
+  });
+  sfx('shot');
 }

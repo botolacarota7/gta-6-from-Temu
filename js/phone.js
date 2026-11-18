@@ -6,6 +6,11 @@ const Phone = {
   site: null,
   photo: null,
   calling: null,
+  instaTab: 'post',
+  reels: null,
+  reelIdx: 0,
+  reelTimer: null,
+  gq: '',
   aiNews: { items: [], loading: false, stamp: -9999, error: null },
 
   contacts: [
@@ -75,6 +80,7 @@ const Phone = {
   },
 
   render() {
+    if (this.reelTimer) { clearTimeout(this.reelTimer); this.reelTimer = null; }
     const screen = document.getElementById('phone-screen');
     if (!screen) return;
     const clock = fmtTime(Game.timeMin);
@@ -387,13 +393,82 @@ const Phone = {
   },
 
   renderInsta(screen) {
+    if (this.instaTab === 'reel') { this.renderReel(screen); return; }
     const posts = this.posts.map((p, i) =>
       '<div class="ph-post"><img src="' + p.img + '" alt=""><div class="ph-post-cap">' + escHtml(p.caption) + '</div>' +
-      '<div class="ph-post-foot"><button class="ph-like' + (p.liked ? ' on' : '') + '" data-action="like" data-i="' + i + '">' + (p.liked ? '❤️' : '🤍') + ' ' + p.likes + '</button></div></div>'
+      '<div class="ph-post-foot"><button class="ph-like' + (p.liked ? ' on' : '') + '" data-action="like" data-i="' + i + '">' + (p.liked ? '\u2764\ufe0f' : '\ud83e\udd0d') + ' ' + p.likes + '</button></div></div>'
     ).join('');
     screen.innerHTML = this.bar('Instagrim', true) +
-      '<div class="ph-insta"><div class="ph-istats">' + escHtml(Game.player.custom.name) + ' · ' + this.followers + ' follower · ' + this.posts.length + ' post</div>' +
+      this.instaTabs() +
+      '<div class="ph-insta"><div class="ph-istats">' + escHtml(Game.player.custom.name) + ' \u00b7 ' + this.followers + ' follower \u00b7 ' + this.posts.length + ' post</div>' +
       (posts || '<div class="ph-empty">Nessun post.<br>Scatta la prima foto!</div>') + '</div>';
+  },
+
+  instaTabs() {
+    return '<div class="ph-tabs">' +
+      '<button class="ph-tab' + (this.instaTab === 'post' ? ' on' : '') + '" data-action="insta-tab" data-tab="post">Post</button>' +
+      '<button class="ph-tab' + (this.instaTab === 'reel' ? ' on' : '') + '" data-action="insta-tab" data-tab="reel">Reel</button>' +
+      '</div>';
+  },
+
+  genReels() {
+    if (this.reels) return this.reels;
+    const cap = [
+      'Sto guidando davanti al furgoncino. Il furgoncino ha vinto.',
+      'La pizza di Gino a colazione. Le stelle di polizia a pranzo.',
+      'Il mio pacco \u00e8 in spedizione dal 2019. Ottimismo totale.',
+      'La mia auto ha fatto i baffi. Garanzia Temu: 4 secondi.',
+      'Quando le stelle arrivano, io ballo. Il resto della citt\u00e0 scappa.',
+      'GTA 6 uscir\u00e0 domani\u2122. Io intanto faccio i reel.',
+      'Nel traffico dal mattino. Professionista del clacson.',
+      'Los Pepes vi salutano. Il pizzo include i follower.',
+      'Notte fonda: cerco la strada di casa. E una pizza.',
+      'Il tram un\'ora in ritardo, io in diretta. Leggenda.',
+    ];
+    this.reels = [];
+    for (let i = 0; i < 10; i++) {
+      const seed = 'r' + i + '' + randInt(1000, 9999);
+      this.reels.push({
+        seed: seed,
+        caption: cap[i % cap.length],
+        tag: '@citta_temu_' + (i + 1),
+        likes: randInt(120, 9900),
+        liked: false,
+        g1: ['#e1306c', '#4285F4', '#FFD600', '#12b886', '#8e44ad'][i % 5],
+        g2: ['#fdc468', '#34a853', '#dd2a7b', '#7048e8', '#0ca678'][i % 5],
+      });
+    }
+    return this.reels;
+  },
+
+  renderReel(screen) {
+    const reels = this.genReels();
+    const r = reels[this.reelIdx % reels.length];
+    const img = 'https://picsum.photos/seed/' + r.seed + '/400/720';
+    screen.innerHTML = this.bar('Instagrim \u00b7 Reel', true) +
+      this.instaTabs() +
+      '<div class="ph-reel" data-action="next-reel">' +
+      '<div class="ph-reel-grad" style="background: linear-gradient(160deg, ' + r.g1 + ', ' + r.g2 + ');"></div>' +
+      '<img class="ph-reelimg" src="' + img + '" alt="reel" onerror="this.style.display=\'none\'">' +
+      '<div class="ph-reel-play">\u25b6\ufe0f</div>' +
+      '<div class="ph-reel-meta"><div class="ph-reel-cap">' + escHtml(r.caption) + '</div>' +
+      '<div class="ph-reel-tag">' + escHtml(r.tag) + '</div></div>' +
+      '<button class="ph-reel-like' + (r.liked ? ' on' : '') + '" data-action="reel-like">\u2764\ufe0f ' + r.likes + '</button>' +
+      '<div class="ph-reel-prog"></div>' +
+      '</div>' +
+      '<div class="ph-tip" style="text-align:center">Tap sul video per il prossimo reel</div>';
+    if (this.reelTimer) clearTimeout(this.reelTimer);
+    this.reelTimer = setTimeout(() => {
+      this.reelIdx = (this.reelIdx + 1) % this.reels.length;
+      if (this.open && this.app === 'insta' && this.instaTab === 'reel') this.render();
+    }, 6000);
+  },
+
+  likeReel() {
+    const reels = this.genReels();
+    const r = reels[this.reelIdx % reels.length];
+    if (!r.liked) { r.liked = true; r.likes++; this.followers += 1; }
+    this.render();
   },
 
   likePost(i) {
@@ -532,10 +607,15 @@ const Phone = {
       title: 'cronache-ai.live — edizione generata in tempo reale',
       render() { return ''; },
     },
+    google: {
+      title: 'Google',
+      render() { return ''; },
+    },
   },
 
   renderBrowserHome(screen) {
     const groups = [
+      ['🔍 Ricerca', ['google']],
       ['📰 Notizie', ['cronache', 'ainews', 'sport']],
       ['📚 Cultura e community', ['temupedia', 'forum', 'astro', 'musica']],
       ['🛍️ Affari', ['temu', 'gino', 'pepes']],
@@ -552,6 +632,7 @@ const Phone = {
 
   renderSite(screen) {
     if (this.site === 'ainews') { this.renderAiNews(screen); return; }
+    if (this.site === 'google') { this.renderGoogle(screen); return; }
     const s = this.sites[this.site];
     screen.innerHTML = this.bar(s.title, true) + '<div class="ph-page">' + s.render() + '</div>';
   },
@@ -567,6 +648,68 @@ const Phone = {
       '<button class="ph-mini ph-gen" data-action="gennews">🔄 Genera articoli freschi</button>' +
       (AIChat.configured() ? '' : '<p class="ph-tip">Collega una AI dal menu Impostazioni AI per articoli scritti in tempo reale. Senza AI esce l\'edizione locale.</p>') +
       '</div>';
+  },
+
+  renderGoogle(screen) {
+    const chips = ['GTA 6 uscita', 'pizzeria da gino orari', 'Los Pepes gang', 'pizzo prezzo', 'temu offerte', 'oroscopo oggi'];
+    let body;
+    if (!this.gq) {
+      body = '<div class="ph-gsearchwrap"><input id="google-q" class="ph-gsearch" placeholder="Cerca su Google" autocomplete="off"></div>' +
+        '<div class="ph-gbtns"><button class="ph-mini ph-gbtn" data-action="gsearch">Cerca su Google</button>' +
+        '<button class="ph-mini" data-action="glucky">Mi sento fortunato</button></div>' +
+        '<div class="ph-gchips">' + chips.map((c) => '<button class="ph-gchip" data-action="gchip" data-q="' + c + '">' + c + '</button>').join('') + '</div>';
+    } else {
+      const res = this.googleResults(this.gq);
+      body = '<div class="ph-gagain"><input id="google-q" class="ph-gsearch" value="' + escHtml(this.gq) + '" autocomplete="off">' +
+        '<button class="ph-mini ph-gbtn" data-action="gsearch">Vai</button></div>' +
+        '<div class="ph-gcou">Circa ' + randInt(3, 97) + '.' + randInt(10, 99) + '.000 risultati (0,' + randInt(2, 9) + ' secondi, wifi di Temu)</div>' +
+        res.html +
+        '<p class="ph-tip">Risultati non sponsorizzati (il pizzo ai Pepes è cartaceo).</p>';
+    }
+    screen.innerHTML = this.bar('Google', true) + '<div class="ph-page ph-google">' +
+      '<div class="ph-gbar"><span class="ph-glogo"><span style="color:#4285F4">G</span><span style="color:#EA4335">o</span><span style="color:#FBBC05">o</span><span style="color:#4285F4">g</span><span style="color:#34A853">l</span><span style="color:#EA4335">e</span></span></div>' +
+      body + '</div>';
+  },
+
+  googleResults(q) {
+    const lq = q.toLowerCase();
+    const map = [
+      { kw: ['pizza', 'gino', 'margherita', 'pizzeria', 'pizz'], id: 'gino', label: 'Da Gino — Pizzeria dal 1987 (circa)', url: 'dagino.it › citta-temu' },
+      { kw: ['pepes', 'pizzo', 'gang', 'boss'], id: 'pepes', label: 'Los Pepes — Home', url: 'lospepes.net › index' },
+      { kw: ['gta', 'uscita', 'videogioch'], id: 'gta6', label: 'GTA 6 — UFFICIALE (uscita: domani)', url: 'gta6-temu.com › countdown' },
+      { kw: ['temu', 'offerte', 'acquist', 'pacco'], id: 'temu', label: 'temU — tutto a due soldi', url: 'temu.temu › offerte-fantasma' },
+      { kw: ['notiz', 'cronach', 'giornal'], id: 'cronache', label: 'Cronache di Città Temu', url: 'cronachetemu.it › ultimora' },
+      { kw: ['ai', 'live', 'intelligenz'], id: 'ainews', label: 'Cronache AI — live', url: 'cronache-ai.live › now' },
+      { kw: ['forum', 'discuss'], id: 'forum', label: 'Forum Temu — "i pacco non arrivano"', url: 'temu-forum.org › pacchi' },
+      { kw: ['oroscopo', 'stelle', 'astro'], id: 'astro', label: 'Orroscopo di Temu — Mystic', url: 'orroscopo.temu › stelle' },
+      { kw: ['musica', 'canzoni'], id: 'musica', label: 'Temu Music — Top 5', url: 'temumusic.top › classifica' },
+      { kw: ['sport', 'calcio', 'partita'], id: 'sport', label: 'temusport.it', url: 'temusport.it › live' },
+      { kw: ['temupedia', 'antonio', 'wiki', 'citta'], id: 'temupedia', label: 'Temupedia — Città Temu (voci scritte da 1 donna)', url: 'temupedia.org › wiki › Citta-temu' },
+    ];
+    const hits = [];
+    map.forEach((m) => { if (m.kw.some((k) => lq.indexOf(k) >= 0)) hits.push(m); });
+    const snip = [
+      'Fonte affidabilissima: dice tutto e il falso allo stesso tempo.',
+      'Snippet generato durante la spedizione del tuo pacco (ancora in giro).',
+      'Secondo i Pepes questa pagina è sotto protezione. "Pizzo di protezione per il risultato", dichiarano.',
+      'Il gestore del sito è Antonio. "Logo best, contenuti best, premio best".',
+      'La polizia consiglia di non fidarsi. Nemmeno di questo consiglio.',
+    ];
+    let cards = '';
+    const add = (m) => {
+      const site = this.sites[m.id];
+      cards += '<div class="ph-gres"><div class="ph-gurl img">' + m.url + '</div><h4>' + escHtml(m.label) + '</h4>' +
+        '<p>' + snip[randInt(0, snip.length - 1)] + '</p>' +
+        (site ? '<button class="ph-mini ph-gvisit" data-action="visit" data-id="' + m.id + '">Apri ' + escHtml(site.title) + '</button>' : '') + '</div>';
+    };
+    const seen = new Set(hits.map((m) => m.id));
+    hits.forEach(add);
+    const wiki = map[map.length - 1];
+    if (!seen.has(wiki.id)) { add(wiki); }
+    if (!hits.length) {
+      cards = '<div class="ph-article"><h3>Nessun risultato per "' + escHtml(q) + '"</h3><p>Google Temu è comunque ottimista: mostra comunque Temupedia. Cerca pizza, GTA, Pepes o offerte.</p></div>' + cards;
+    }
+    return { html: cards };
   },
 
   localNews() {
