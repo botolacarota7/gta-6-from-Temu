@@ -48,9 +48,14 @@ function updatePlayer(dt) {
 }
 
 // ---------- camera terza persona ----------
-function updateCamera() {
+function updateCamera(dt) {
   const pl = Game.player;
   if (!pl) return;
+  // in auto la camera si allinea dolcemente dietro il veicolo (solo quando si muove)
+  if (pl.inCar && Math.abs(pl.inCar.speed || 0) > 2) {
+    const diff = normAngle(pl.inCar.angle - Game.camYaw);
+    Game.camYaw = pl.inCar.angle - diff * Math.max(0, 1 - dt * 2.4);
+  }
   const cp = Math.cos(Game.camPitch), sp = Math.sin(Game.camPitch);
   const fx = Math.cos(Game.camYaw), fz = Math.sin(Game.camYaw);
   let d = Game.camDist;
@@ -316,7 +321,7 @@ function loop(now) {
   Input.endFrame();
 
   if (Game.player && World3.ready) {
-    updateCamera();
+    updateCamera(dt);
     World3.updateDayNight(Game.timeMin);
     Touch.refreshWeapon();
     World3.syncViews(dt);
