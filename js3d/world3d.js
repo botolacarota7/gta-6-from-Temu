@@ -674,54 +674,110 @@ const World3 = {
     return this.buildPersonMesh(c && c.swat ? c : { skin: '#e0ac69', shirt: '#1f4e8c', pants: '#16283f', hair: '#2b2b2b', hat: 'cap' }, c && c.swat ? 'swat' : 'cops');
   },
 
-  buildCarMesh(color, len, wid) {
+  buildCarMesh(car) {
+    const color = car.color;
+    const len = car.len;
+    const wid = car.wid;
+    const specId = (car.spec && car.spec.id) || '';
     const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(len, 0.5, wid), this.lambertMat(color));
-    body.position.y = 0.52;
-    body.castShadow = true;
-    g.add(body);
-    const skirt = new THREE.Mesh(new THREE.BoxGeometry(len * 0.92, 0.18, wid * 0.96), this.lambertMat('#26262b'));
-    skirt.position.y = 0.28;
-    g.add(skirt);
-    const glass = this.lambertMat('#1c2a38');
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(len * 0.44, 0.4, wid * 0.84), glass);
-    cabin.position.set(-len * 0.06, 0.97, 0);
+    const paint = this.lambertMat(color);
+    const dark = this.lambertMat('#26262b');
+    const glass = this.lambertMat('#243447');
+    const chrome = this.lambertMat('#9aa2ab');
+    const bodyLow = new THREE.Mesh(new THREE.BoxGeometry(len, 0.36, wid), paint);
+    bodyLow.position.y = 0.42;
+    bodyLow.castShadow = true;
+    g.add(bodyLow);
+    const bodyMid = new THREE.Mesh(new THREE.BoxGeometry(len * 0.985, 0.3, wid * 0.94), paint);
+    bodyMid.position.y = 0.74;
+    bodyMid.castShadow = true;
+    g.add(bodyMid);
+    const hood = new THREE.Mesh(new THREE.BoxGeometry(len * 0.27, 0.16, wid * 0.86), paint);
+    hood.position.set(len * 0.32, 0.94, 0);
+    g.add(hood);
+    const trunk = new THREE.Mesh(new THREE.BoxGeometry(len * 0.22, 0.15, wid * 0.86), paint);
+    trunk.position.set(-len * 0.34, 0.94, 0);
+    g.add(trunk);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(len * 0.42, 0.3, wid * 0.8), glass);
+    cabin.position.set(-len * 0.02, 0.96, 0);
     cabin.castShadow = true;
     g.add(cabin);
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(len * 0.46, 0.06, wid * 0.86), this.lambertMat(color));
-    roof.position.set(-len * 0.06, 1.2, 0);
+    const shield = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, wid * 0.76), glass);
+    shield.position.set(len * 0.185, 1.02, 0);
+    shield.rotation.z = -0.42;
+    g.add(shield);
+    const rearGlass = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.32, wid * 0.74), glass);
+    rearGlass.position.set(-len * 0.21, 1.0, 0);
+    rearGlass.rotation.z = 0.5;
+    g.add(rearGlass);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(len * 0.34, 0.05, wid * 0.8), paint);
+    roof.position.set(-len * 0.03, 1.17, 0);
     g.add(roof);
+    for (const sz of [1, -1]) {
+      const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.14), dark);
+      mirror.position.set(len * 0.14, 1.02, sz * (wid / 2 + 0.07));
+      g.add(mirror);
+    }
     for (const bx of [1, -1]) {
-      const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, wid * 0.98), this.lambertMat('#33343a'));
-      bumper.position.set(bx * (len / 2 + 0.03), 0.38, 0);
+      const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, wid * 0.98), dark);
+      bumper.position.set(bx * (len / 2 + 0.04), 0.4, 0);
       g.add(bumper);
     }
-    const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.24, 12);
-    const wheelMat = this.lambertMat('#151515');
-    const hubGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.26, 8);
-    const hubMat = this.lambertMat('#8a8f96');
-    for (const [wx, wz] of [[len * 0.32, wid / 2], [len * 0.32, -wid / 2], [-len * 0.32, wid / 2], [-len * 0.32, -wid / 2]]) {
+    const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.12, 8), chrome);
+    exhaust.rotation.z = Math.PI / 2;
+    exhaust.position.set(-len / 2 - 0.07, 0.3, -wid * 0.28);
+    g.add(exhaust);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.11, 0.3), this.lambertMat('#e8e8e2'));
+    plate.position.set(-len / 2 - 0.1, 0.5, 0);
+    g.add(plate);
+    if (specId === 'sport') {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, wid * 0.85), dark);
+      wing.position.set(-len * 0.44, 1.16, 0);
+      g.add(wing);
+      for (const wz of [wid * 0.3, -wid * 0.3]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.05), dark);
+        post.position.set(-len * 0.44, 1.07, wz);
+        g.add(post);
+      }
+    }
+    if (specId === 'van') {
+      for (const wz of [wid * 0.28, -wid * 0.28]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(len * 0.4, 0.06, 0.06), dark);
+        rail.position.set(-len * 0.02, 1.24, wz);
+        g.add(rail);
+      }
+    }
+    const wheelGeo = new THREE.CylinderGeometry(0.33, 0.33, 0.26, 14);
+    const wheelMat = this.lambertMat('#141414');
+    const hubGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.28, 8);
+    const hubMat = this.lambertMat('#a7adb5');
+    const steerPivots = [];
+    for (const wp of [[len * 0.33, wid / 2 - 0.04, 1], [len * 0.33, -wid / 2 + 0.04, 1], [-len * 0.33, wid / 2 - 0.04, 0], [-len * 0.33, -wid / 2 + 0.04, 0]]) {
+      const pv = new THREE.Group();
+      pv.position.set(wp[0], 0.33, wp[1]);
       const w = new THREE.Mesh(wheelGeo, wheelMat);
       w.rotation.x = Math.PI / 2;
-      w.position.set(wx, 0.32, wz);
-      g.add(w);
+      pv.add(w);
       const hub = new THREE.Mesh(hubGeo, hubMat);
       hub.rotation.x = Math.PI / 2;
-      hub.position.set(wx, 0.32, wz);
-      g.add(hub);
+      pv.add(hub);
+      g.add(pv);
+      if (wp[2]) steerPivots.push(pv);
     }
     const lightMat = new THREE.MeshBasicMaterial({ color: 0x554d33 });
     const tailMat = new THREE.MeshBasicMaterial({ color: 0x7a1f1f });
     for (const wz of [wid * 0.3, -wid * 0.3]) {
-      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.24), lightMat);
-      hl.position.set(len / 2 + 0.02, 0.6, wz);
+      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.26), lightMat);
+      hl.position.set(len / 2 + 0.03, 0.62, wz);
       g.add(hl);
-      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.11, 0.2), tailMat);
-      tl.position.set(-len / 2 - 0.02, 0.6, wz);
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.22), tailMat);
+      tl.position.set(-len / 2 - 0.03, 0.62, wz);
       g.add(tl);
     }
     g.userData.lightMat = lightMat;
     g.userData.tailMat = tailMat;
+    g.userData.steerPivots = steerPivots;
+    g.rotation.order = 'YXZ';
     return g;
   },
 
@@ -844,7 +900,7 @@ const World3 = {
     };
     syncList(Entities.peds, (e) => this.buildPersonMesh(e));
     syncList(Entities.cops, (c) => this.buildCopMesh(c));
-    syncList(Entities.cars, (c) => this.buildCarMesh(c.color, c.len, c.wid));
+    syncList(Entities.cars, (c) => this.buildCarMesh(c));
     syncList(Entities.pickups, () => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), this.basicMat('#2c8f2c'));
       m.userData.isPickup = true;
@@ -883,6 +939,12 @@ const World3 = {
     for (const c of Entities.cars) {
       c.view.position.set(c.x, 0, c.z);
       c.view.rotation.y = -c.angle;
+      c.view.rotation.x = c.visRoll || 0;
+      c.view.rotation.z = c.visPitch || 0;
+      const sp = c.view.userData.steerPivots;
+      if (sp && sp.length) {
+        for (const pv of sp) pv.rotation.y = -(c.steerVis || 0);
+      }
       if (c.state === 'wreck') c.view.children[0].material = this.lambertMat('#2a2a2a');
     }
     for (const p of Entities.pickups) {

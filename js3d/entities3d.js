@@ -423,6 +423,10 @@ class Car3 {
     this.maxSpeed = spec.maxSpeed * 0.12;
     this.accel = spec.accel * 0.12;
     this.owner = null;
+    this.steer = 0;
+    this.steerVis = 0;
+    this.visRoll = 0;
+    this.visPitch = 0;
     this.ii = 0; this.jj = 0; this.dir = 0;
     this.tx = 0; this.tz = 0;
     this.cruise = rand(10, 16);
@@ -440,22 +444,42 @@ class Car3 {
       return;
     }
     if (this.state === 'player') this.updatePlayerDriven(dt);
-    else if (this.state === 'traffic') this.updateTraffic(dt);
+    else {
+      this.steerVis = 0;
+      if (this.state === 'traffic') this.updateTraffic(dt);
+    }
   }
 
   updatePlayerDriven(dt) {
-    let throttle = 0, steer = 0;
-    if (Input.down('w', 'arrowup')) throttle = 1;
-    if (Input.down('s', 'arrowdown')) throttle = -1;
-    if (Input.down('a', 'arrowleft')) steer = -1;
-    if (Input.down('d', 'arrowright')) steer = 1;
-    this.speed += throttle * this.accel * dt;
-    if (throttle === 0) this.speed *= Math.max(0, 1 - 1.4 * dt);
-    this.speed = clamp(this.speed, -this.maxSpeed * 0.45, this.maxSpeed);
-    const grip = clamp(Math.abs(this.speed) / 12, 0, 1);
-    this.angle += steer * 2.0 * dt * grip * Math.sign(this.speed || 1);
+    const th = (Input.down('w', 'arrowup') ? 1 : 0) - (Input.down('s', 'arrowdown') ? 1 : 0);
+    const st = (Input.down('a', 'arrowleft') ? 1 : 0) - (Input.down('d', 'arrowright') ? 1 : 0);
+    const hand = Input.down(' ');
+    if (th > 0) {
+      if (this.speed < 0) this.speed += this.accel * 2.2 * dt;
+      else this.speed += this.accel * (1 - clamp(this.speed / this.maxSpeed, 0, 1) * 0.55) * dt;
+    } else if (th < 0) {
+      if (this.speed > 0.5) this.speed -= this.accel * 2.1 * dt;
+      else this.speed -= this.accel * 0.55 * dt;
+    } else {
+      this.speed *= Math.max(0, 1 - 0.85 * dt);
+    }
+    if (hand) this.speed *= Math.max(0, 1 - 2.4 * dt);
+    this.speed = clamp(this.speed, -this.maxSpeed * 0.4, this.maxSpeed);
+
+    const v = Math.abs(this.speed);
+    const steerMax = 2.1;
+    const turn = steerMax * Math.min(v / 8, 1) * (18 / (18 + v)) * (hand ? 1.45 : 1);
+    this.steer += (st * turn - this.steer) * clamp(dt * 7, 0, 1);
+    this.angle += this.steer * dt * (this.speed < 0 ? -1 : 1);
+    this.steerVis = st * 0.5;
+
     this.moveWithCollision(dt);
     this.checkPedHits();
+
+    const targetRoll = clamp(-this.steer * v * 0.004, -0.09, 0.09);
+    this.visRoll += (targetRoll - this.visRoll) * clamp(dt * 6, 0, 1);
+    const targetPitch = th > 0 ? -0.02 : (th < 0 && this.speed > 1 ? 0.03 : (hand && v > 2 ? 0.045 : 0));
+    this.visPitch += (targetPitch - this.visPitch) * clamp(dt * 5, 0, 1);
   }
 
   laneTarget() {
@@ -536,7 +560,7 @@ class Car3 {
     if (nx < 6 || nz < 6 || nx > City3.size - 6 || nz > City3.size - 6) hit = true;
     if (hit) {
       if (Math.abs(this.speed) > 14) this.damage(8);
-      this.speed *= -0.35;
+      this.speed *= -0.28;
       sfx('crash');
     } else {
       this.x = nx; this.z = nz;
