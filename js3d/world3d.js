@@ -503,7 +503,7 @@ const World3 = {
     mesh.rotation.y = -e.angle;
     mesh.rotation.z = 0;
     const running = e.state === 'flee' || (e === Game.player && Input.down('shift'));
-    const moving = e.state !== 'react' && e.state !== 'idle';
+    const moving = e.state !== 'react' && e.state !== 'idle' && e.state !== 'watch';
     let pick = null;
     if (moving) pick = running && av.acts.run ? 'run' : (av.acts.walk ? 'walk' : 'run');
     else pick = av.acts.idle ? 'idle' : (av.acts.walk ? 'walk' : null);
@@ -791,7 +791,7 @@ const World3 = {
     mesh.rotation.z = 0;
 
     const running = e.state === 'flee' || (e === Game.player && Input.down('shift'));
-    const moving = e.state !== 'react' && e.state !== 'idle';
+    const moving = e.state !== 'react' && e.state !== 'idle' && e.state !== 'watch';
     const amp = running ? 0.75 : 0.5;
     const s = Math.sin(e.walkPhase);
     const s2 = Math.sin(e.walkPhase + Math.PI);

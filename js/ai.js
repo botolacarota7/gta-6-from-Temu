@@ -90,10 +90,12 @@ const AIChat = {
       npc.isAntonio
         ? 'Tu sei ANTONIO: il personaggio più amato della città, informatore chiacchierone e filosofo urbano. Conosci ogni angolo, adori la pizza di Gino, e fai continue battute su GTA 6 e su Temu. Consideri il giocatore un amico.'
         : 'La tua personalità è: ' + this.moodText(npc) + '.',
+      npc.activity ? 'Stai vivendo questa scena in questi istanti: ' + npc.activity + '. Porta avanti la conversazione partendo da cioè che vedi e vivi.' : '',
       'Rispondi SEMPRE in italiano, massimo 2 frasi brevi, tono comico da GTA. Niente emoji, niente virgolette attorno alla risposta, niente descrizioni di azioni tra asterischi.',
+      'Devi sembrare VIVO: quasi ogni tua risposta finisce con una domanda o una battuta rivolta al giocatore, reagisci alle sue parole e ai cambi di argomento, cambia umore in base a quello che succede nella scena.',
       'Sono le ' + hour + '. Il giocatore si chiama ' + pl.custom.name + ' e ha ' + fmtMoney(pl.money) + '.' +
       (stato.length ? ' Contesto: ' + stato.join('; ') + '.' : ''),
-      npc.isAntonio ? 'Non ripetere mai due volte la stessa battuta.' : '',
+      'Non ripetere mai due volte la stessa battuta: varia parole e struttura delle frasi ad ogni risposta.',
       Memories.summaryForAI(npc),
     ].filter(Boolean).join(' ');
   },
@@ -152,7 +154,7 @@ const AIChat = {
         body: JSON.stringify({
           model: this.model(),
           messages,
-          max_tokens: 90,
+          max_tokens: 120,
           temperature: 1.0,
         }),
         signal: ctrl ? ctrl.signal : undefined,
