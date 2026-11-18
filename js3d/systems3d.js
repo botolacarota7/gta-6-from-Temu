@@ -417,6 +417,158 @@ const Systems = {
     }
   },
 
+  // ===== Eventi stradali selvaggi: sparatorie, inseguimenti, chiamate alla polizia =====
+  streetEvents(dt) {
+    const pl = Game.player;
+
+    // sparatoria tra bot in corso
+    const gf = this.gunfight;
+    if (gf) {
+      if (gf.t > 0) gf.t -= dt;
+      const aOk = gf.a.state !== 'dead' && Entities.peds.indexOf(gf.a) >= 0;
+      const bOk = gf.b.state !== 'dead' && Entities.peds.indexOf(gf.b) >= 0;
+      if (!aOk || !bOk || gf.t <= 0) {
+        const survivors = [];
+        if (aOk) survivors.push(gf.a);
+        if (bOk) survivors.push(gf.b);
+        for (const s of survivors) {
+          s.shooter = false;
+          s.foe = null;
+          s.state = 'flee';
+          s.stateT = rand(8, 14);
+          s.fleeFrom = { x: gf.x, z: gf.z };
+          s.fleeEnt = null;
+          s.say('Me la squaglio!');
+        }
+        this.gunfight = null;
+        if (survivors.length && Math.random() < 0.45) this.witnessCall(gf.x, gf.z, survivors);
+      } else {
+        const dd = dist(gf.a.x, gf.a.z, gf.b.x, gf.b.z);
+        if (dd < 26) {
+          gf.a.shootT -= dt;
+          gf.b.shootT -= dt;
+          if (gf.a.shootT <= 0) { botShoot(gf.a, gf.b, rand(6, 14)); gf.a.shootT = rand(0.4, 1.3); }
+          if (gf.b.shootT <= 0) { botShoot(gf.b, gf.a, rand(6, 14)); gf.b.shootT = rand(0.4, 1.3); }
+        }
+      }
+    }
+
+    // inseguimento in auto tra bot in corso
+    const cc = this.carChase;
+    if (cc) {
+      if (cc.t > 0) cc.t -= dt;
+      const runnerOk = cc.runner && cc.runner.state === 'traffic' && Entities.cars.indexOf(cc.runner) >= 0;
+      const chaserOk = cc.chaser && cc.chaser.state === 'traffic' && Entities.cars.indexOf(cc.chaser) >= 0;
+      if (!runnerOk || !chaserOk || cc.t <= 0) {
+        if (cc.runner) cc.runner.chased = false;
+        if (cc.chaser) { cc.chaser.chasing = null; cc.chaser.cruise = cc.chaser._cruise || rand(10, 16); }
+        this.carChase = null;
+      }
+    }
+
+    // un testimone sta chiamando la polizia
+    if (this.policeCallT != null) {
+      this.policeCallT -= dt;
+      if (this.policeCallT <= 0) { this.policeCallT = null; this.dispatchPolice(); }
+    }
+
+    // nuovo selvaggio evento
+    this.crazyCd = Math.max(0, (this.crazyCd == null ? rand(25, 45) : this.crazyCd) - dt);
+    if (this.crazyCd <= 0) {
+      this.crazyCd = rand(50, 100);
+      this.startGunfight(pl);
+      if (!this.gunfight) this.startCarChase(pl);
+    }
+  },
+
+  startGunfight(pl) {
+    if (pl.dead || this.gunfight) return;
+    const cand = Entities.peds.filter((p) => p.state === 'walk' && !p.medic && !p.isAntonio && p.gang !== 'rival' && !p.suspect && !p.shooter && dist(p.x, p.z, pl.x, pl.z) < 150);
+    if (cand.length < 2) return;
+    const a = choice(cand);
+    const others = cand.filter((p) => p !== a && dist(p.x, p.z, a.x, a.z) < 40);
+    if (!others.length) return;
+    const b = choice(others);
+    a.shooter = true; a.foe = b; a.state = 'idle'; a.stateT = 99; a.shootT = rand(0.2, 1); a.dest = null;
+    b.shooter = true; b.foe = a; b.state = 'idle'; b.stateT = 99; b.shootT = rand(0.2, 1); b.dest = null;
+    a.say('Ti stavo aspettando!');
+    b.pendingSay = { text: 'Sei morto, carogna!', t: 0.9 };
+    for (const p of Entities.peds) {
+      if (p !== a && p !== b && p.state !== 'dead' && p.state !== 'flee' && !p.shooter && dist(p.x, p.z, a.x, a.z) < 20) p.scare({ x: a.x, y: a.z }, 10);
+    }
+    this.gunfight = { a, b, x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, t: rand(14, 24) };
+    this.lastIncident = { x: a.x, z: a.z, kind: 'una sparatoria per strada', until: Game.elapsed + 35 };
+    this.attractPeds(a.x, a.z, 6, 80);
+    if (dist(a.x, a.z, pl.x, pl.z) < 130) UI.toast('Sparatoria per strada! Due bot si sparano tra loro!', 'info');
+  },
+
+  startCarChase(pl) {
+    if (pl.dead || this.carChase) return;
+    const cars = Entities.cars.filter((c) => c.state === 'traffic' && !c.chasing && !c.chased && dist(c.x, c.z, pl.x, pl.z) < 170);
+    if (cars.length < 2) return;
+    const a = choice(cars);
+    let others = cars.filter((c) => c !== a && dist(c.x, c.z, a.x, a.z) < 80);
+    if (!others.length) {
+      let bestC = null, bestD = 1e9;
+      for (const c of cars) {
+        if (c === a) continue;
+        const dd = dist(c.x, c.z, a.x, a.z);
+        if (dd < bestD) { bestD = dd; bestC = c; }
+      }
+      if (bestC) others = [bestC];
+    }
+    if (!others.length) return;
+    const b = choice(others);
+    a._cruise = a.cruise;
+    a.chasing = b;
+    a.sideDir = Math.random() < 0.5 ? 1 : -1;
+    b.chased = true;
+    this.carChase = { chaser: a, runner: b, t: rand(15, 25) };
+    this.lastIncident = { x: a.x, z: a.z, kind: 'un inseguimento in auto tra sconosciuti', until: Game.elapsed + 30 };
+    this.attractPeds(a.x, a.z, 5, 70);
+    if (dist(a.x, a.z, pl.x, pl.z) < 150) UI.toast('Due auto si incalzano a tutto gas per la città!', 'info');
+  },
+
+  witnessCall(x, z, culprits) {
+    const pl = Game.player;
+    let caller = null;
+    for (const p of Entities.peds) {
+      if (p.state === 'dead' || p.isAntonio || culprits.indexOf(p) >= 0) continue;
+      if (dist(p.x, p.z, x, z) < 60) { caller = p; break; }
+    }
+    if (!caller) return;
+    caller.say('Sto chiamando la polizia! Subito!');
+    this.policeCallT = 3;
+    this.policeCallData = { x, z, culprits: culprits.slice() };
+    if (dist(x, z, pl.x, pl.z) < 120) UI.toast('Un testimone sta chiamando la polizia...', 'info');
+  },
+
+  dispatchPolice() {
+    const pl = Game.player;
+    const d = this.policeCallData;
+    this.policeCallData = null;
+    if (!d || pl.dead) return;
+    const culprit = d.culprits.find((p) => p.state !== 'dead' && Entities.peds.indexOf(p) >= 0);
+    if (!culprit) return;
+    culprit.suspect = true;
+    culprit.shooter = false;
+    culprit.foe = null;
+    culprit.state = 'flee';
+    culprit.stateT = 30;
+    culprit.fleeFrom = { x: d.x, z: d.z };
+    const cop = new Cop3(clamp(d.x + rand(-50, 50), 10, City3.size - 10), clamp(d.z + rand(-50, 50), 10, City3.size - 10));
+    cop.ambient = true;
+    cop.pursuit = culprit;
+    cop.say('FERMATI! Polizia!');
+    culprit.fleeEnt = cop;
+    Entities.cops.push(cop);
+    this.suspect = culprit;
+    this.chaseCd = rand(45, 90);
+    this.lastIncident = { x: d.x, z: d.z, kind: 'un inseguimento della polizia (chiamata di un testimone)', until: Game.elapsed + 35 };
+    this.attractPeds(d.x, d.z, 6, 80);
+    if (dist(d.x, d.z, pl.x, pl.z) < 140) UI.toast('La polizia sta inseguendo un sospetto!', 'info');
+  },
+
   spawnAntonio() {
     const pizzeria = City3.doors.find((d) => d.type === 'pizzeria');
     const antonio = new Person3(pizzeria.x + 16, pizzeria.y + 28, {
@@ -782,6 +934,7 @@ const Systems = {
   update(dt) {
     this.gunTimer = Math.max(0, this.gunTimer - dt);
     this.updatePopulation(dt);
+    this.streetEvents(dt);
     this.updateJob(dt);
 
     if (this.tempObjective) {

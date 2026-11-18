@@ -442,3 +442,70 @@ html, body {
 }
 #hud-phone:hover { background: rgba(40,40,60,.8); transform: translateY(-2px); }
 #hud-phone.hidden-btn { display: none; }
+
+/* ===== telefono: tab Instagram (Post / Reel) ===== */
+.ph-tabs { display: flex; gap: 6px; margin: 8px 0 10px; }
+.ph-tab {
+  flex: 1; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px; padding: 7px 0; font-size: 12px; font-weight: 700; color: #9aa3bd;
+  cursor: pointer; transition: all .15s ease;
+}
+.ph-tab.on { background: linear-gradient(135deg, #dd2a7b, #8134af); color: #fff; border-color: transparent; }
+
+/* ===== telefono: reel ===== */
+.ph-reel {
+  position: relative; height: 400px; border-radius: 14px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.1); cursor: pointer; animation: phIn .18s ease;
+}
+.ph-reel-grad { position: absolute; inset: 0; }
+.ph-reelimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ph-reel-play {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 34px; opacity: .55; text-shadow: 0 2px 12px rgba(0,0,0,.6); pointer-events: none;
+}
+.ph-reel-meta {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 34px 10px 12px;
+  background: linear-gradient(transparent, rgba(0,0,0,.75)); pointer-events: none;
+}
+.ph-reel-cap { font-size: 12px; color: #fff; text-shadow: 0 1px 3px #000; }
+.ph-reel-tag { font-size: 11px; color: #ffd66e; text-shadow: 0 1px 3px #000; margin-top: 3px; }
+.ph-reel-like {
+  position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.45);
+  border: 1px solid rgba(255,255,255,.2); border-radius: 20px; color: #fff;
+  padding: 5px 11px; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.ph-reel-like.on { background: rgba(221,42,123,.75); }
+.ph-reel-prog { position: absolute; bottom: 0; left: 0; height: 3px; width: 0; background: #ff5c8a; animation: phReelProg 6s linear forwards; }
+@keyframes phReelProg { from { width: 0; } to { width: 100%; } }
+
+/* ===== telefono: Google ===== */
+.ph-google { text-align: center; }
+.ph-gbar { margin: 6px 0 14px; }
+.ph-glogo { font-size: 30px; font-weight: 700; letter-spacing: -1px; }
+.ph-gsearchwrap { margin-bottom: 10px; }
+.ph-gsearch {
+  width: 100%; box-sizing: border-box; background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.14); border-radius: 22px;
+  padding: 10px 16px; color: #fff; font-size: 13px; outline: none; text-align: center;
+}
+.ph-gsearch:focus { border-color: #4285F4; }
+.ph-gbtns { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+.ph-gbtn { background: rgba(66,133,244,.25); }
+.ph-gchips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 6px; }
+.ph-gchip {
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px; padding: 5px 11px; font-size: 11px; color: #c9d1e6; cursor: pointer;
+}
+.ph-gchips .ph-gchip:hover { background: rgba(255,210,63,.2); }
+.ph-gagain { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.ph-gagain .ph-gsearch { flex: 1; text-align: left; }
+.ph-gcou { font-size: 10.5px; color: #7c8468; margin-bottom: 8px; }
+.ph-gres {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; text-align: left;
+}
+.ph-gres h4 { margin: 0 0 4px; font-size: 13px; color: #8ab4f8; }
+.ph-gres p { margin: 0 0 8px; font-size: 11.5px; color: #a7aec4; line-height: 1.45; }
+.ph-gurl { font-size: 10.5px; color: #6fbf73; display: block; margin-bottom: 2px; }
+.ph-gurl.img::before { content: '🌐 '; }
+.ph-gvisit { width: 100%; }
