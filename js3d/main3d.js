@@ -2,7 +2,7 @@
 const Game = {
   canvas: null,
   player: null,
-  camYaw: 0, camPitch: 0.35, camDist: 7,
+  camYaw: 0, camPitch: 0.32, camDist: 5.6,
   elapsed: 0,
   timeMin: 8 * 60,
   state: 'menu',      // menu | custom | play
@@ -244,7 +244,7 @@ function startGame(save) {
   Game.player = new Player3(custom);
   Game.timeMin = save ? save.timeMin : 8 * 60;
   Game.elapsed = 0;
-  Game.camYaw = 0; Game.camPitch = 0.35; Game.camDist = 7;
+  Game.camYaw = 0; Game.camPitch = 0.32; Game.camDist = 5.6;
 
   const pizzeria = City3.doors.find((d) => d.type === 'pizzeria');
   if (save) {

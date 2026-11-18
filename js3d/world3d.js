@@ -232,61 +232,78 @@ const World3 = {
       return m;
     };
 
-    // torso conico + cintura + spalle + collo
+    // torso a fuso umano: spalle larghe, vita stretta, petto in evidenza
     const body = new THREE.Group();
-    body.position.y = 1.28;
+    body.position.y = 1.3;
     g.add(body);
-    const torso = mk(new THREE.CylinderGeometry(0.27, 0.18, 0.64, 14), o.shirt, body);
-    torso.position.y = 0;
-    const belt = mk(new THREE.CylinderGeometry(0.185, 0.185, 0.06, 12), '#222', body);
-    belt.position.y = -0.3;
-    for (const sx of [-0.27, 0.27]) mk(new THREE.SphereGeometry(0.115, 10, 8), o.shirt, body).position.set(sx, 0.24, 0);
-    const neck = mk(new THREE.CylinderGeometry(0.065, 0.075, 0.12, 8), skin, body);
-    neck.position.y = 0.37;
+    const profile = [
+      new THREE.Vector2(0.02, -0.34),
+      new THREE.Vector2(0.145, -0.34),
+      new THREE.Vector2(0.16, -0.24),
+      new THREE.Vector2(0.13, -0.06),
+      new THREE.Vector2(0.185, 0.12),
+      new THREE.Vector2(0.21, 0.26),
+      new THREE.Vector2(0.15, 0.34),
+      new THREE.Vector2(0.02, 0.37),
+    ];
+    const torsoMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(o.shirt), side: THREE.DoubleSide });
+    const torso = new THREE.Mesh(new THREE.LatheGeometry(profile, 14), torsoMat);
+    torso.scale.z = 0.78;
+    torso.castShadow = true;
+    body.add(torso);
+    const belt = mk(new THREE.CylinderGeometry(0.165, 0.17, 0.07, 12), '#222', body);
+    belt.position.y = -0.29;
+    const pelvis = mk(new THREE.BoxGeometry(0.34, 0.18, 0.24), o.pants, g);
+    pelvis.position.y = 0.92;
+    for (const sx of [-0.26, 0.26]) mk(new THREE.SphereGeometry(0.105, 10, 8), o.shirt, body).position.set(sx, 0.27, 0);
+    const neck = mk(new THREE.CylinderGeometry(0.062, 0.075, 0.14, 8), skin, body);
+    neck.position.y = 0.4;
 
     // testa sferica con volto dettagliato: occhi con pupille, sopracciglia, naso e bocca
     const head = new THREE.Group();
-    head.position.y = 1.76;
+    head.position.y = 1.84;
     g.add(head);
-    mk(new THREE.SphereGeometry(0.16, 16, 14), skin, head);
-    const hairCap = mk(new THREE.SphereGeometry(0.175, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.58), o.hair, head);
-    hairCap.rotation.z = -0.4;
-    const backHair = mk(new THREE.SphereGeometry(0.14, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.8), o.hair, head);
-    backHair.position.set(-0.055, -0.01, 0);
+    const skull = mk(new THREE.SphereGeometry(0.17, 16, 14), skin, head);
+    skull.scale.set(1, 1.08, 0.94);
+    for (const ez of [0.168, -0.168]) mk(new THREE.SphereGeometry(0.042, 8, 6), skin, head).position.set(-0.01, -0.02, ez);
+    const hairCap = mk(new THREE.SphereGeometry(0.183, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), o.hair, head);
+    hairCap.rotation.z = -0.35;
+    const backHair = mk(new THREE.SphereGeometry(0.15, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.8), o.hair, head);
+    backHair.position.set(-0.058, 0, 0);
     backHair.rotation.z = Math.PI / 2;
     backHair.scale.set(1, 1, 0.85);
-    const fringe = mk(new THREE.BoxGeometry(0.05, 0.05, 0.2), o.hair, head);
-    fringe.position.set(0.12, 0.1, 0);
+    const fringe = mk(new THREE.BoxGeometry(0.05, 0.055, 0.22), o.hair, head);
+    fringe.position.set(0.13, 0.11, 0);
     const eyeWhite = this.basicMat('#f4f4f0');
     const pupilMat = this.basicMat('#20242c');
-    for (const ez of [0.062, -0.062]) {
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), eyeWhite);
-      ball.position.set(0.125, 0.02, ez);
+    for (const ez of [0.068, -0.068]) {
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 8), eyeWhite);
+      ball.position.set(0.13, 0.02, ez);
       head.add(ball);
-      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.015, 8, 6), pupilMat);
-      pupil.position.set(0.148, 0.02, ez);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), pupilMat);
+      pupil.position.set(0.156, 0.02, ez);
       head.add(pupil);
-      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.014, 0.055), this.lambertMat(o.hair));
-      brow.position.set(0.14, 0.075, ez);
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.016, 0.06), this.lambertMat(o.hair));
+      brow.position.set(0.148, 0.085, ez);
       head.add(brow);
     }
-    const nose = mk(new THREE.BoxGeometry(0.055, 0.055, 0.045), skin, head);
-    nose.position.set(0.16, -0.035, 0);
-    const mouth = mk(new THREE.BoxGeometry(0.015, 0.012, 0.06), this.basicMat('#7a3b3b'));
-    mouth.position.set(0.152, -0.095, 0);
+    const nose = mk(new THREE.BoxGeometry(0.055, 0.06, 0.05), skin, head);
+    nose.position.set(0.17, -0.03, 0);
+    const mouth = mk(new THREE.BoxGeometry(0.015, 0.014, 0.065), this.basicMat('#7a3b3b'));
+    mouth.position.set(0.163, -0.1, 0);
 
     if (o.hat === 'cap') {
-      const crown = mk(new THREE.SphereGeometry(0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), o.shirt, head);
+      const crown = mk(new THREE.SphereGeometry(0.19, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), o.shirt, head);
       crown.rotation.z = -0.15;
-      const visor = mk(new THREE.CylinderGeometry(0.14, 0.14, 0.022, 12, 1, false, -Math.PI / 2.6, Math.PI / 1.3), o.shirt, head);
+      const visor = mk(new THREE.CylinderGeometry(0.15, 0.15, 0.022, 12, 1, false, -Math.PI / 2.6, Math.PI / 1.3), o.shirt, head);
       visor.rotation.x = Math.PI / 2;
       visor.rotation.z = Math.PI / 2;
-      visor.position.set(0.15, 0.04, 0);
+      visor.position.set(0.16, 0.04, 0);
     } else if (o.hat === 'top hat') {
-      mk(new THREE.CylinderGeometry(0.2, 0.2, 0.03, 14), '#111111', head).position.y = 0.15;
-      mk(new THREE.CylinderGeometry(0.115, 0.125, 0.28, 14), '#111111', head).position.y = 0.3;
+      mk(new THREE.CylinderGeometry(0.21, 0.21, 0.03, 14), '#111111', head).position.y = 0.16;
+      mk(new THREE.CylinderGeometry(0.12, 0.13, 0.3, 14), '#111111', head).position.y = 0.32;
     } else if (o.hat === 'bandana') {
-      mk(new THREE.CylinderGeometry(0.17, 0.17, 0.07, 14), '#c1121f', head).position.y = 0.07;
+      mk(new THREE.CylinderGeometry(0.18, 0.18, 0.07, 14), '#c1121f', head).position.y = 0.07;
     }
 
     // arti a due segmenti: anca->ginocchio->piede, spalla->gomito->mano
@@ -305,26 +322,26 @@ const World3 = {
     };
 
     const mkLeg = (sx) => {
-      const hip = mkJoint(g, sx, 0.98);
-      mkSeg(hip, 0.11, 0.085, 0.48, o.pants);
-      const knee = mkJoint(hip, 0, -0.48);
-      mk(new THREE.SphereGeometry(0.085, 8, 6), o.pants, knee);
-      mkSeg(knee, 0.08, 0.06, 0.44, o.pants);
-      const shoe = mk(new THREE.BoxGeometry(0.27, 0.09, 0.13), '#1c1c1c', knee);
-      shoe.position.set(0.06, -0.46, 0);
+      const hip = mkJoint(g, sx, 0.93);
+      mkSeg(hip, 0.095, 0.078, 0.45, o.pants);
+      const knee = mkJoint(hip, 0, -0.45);
+      mk(new THREE.SphereGeometry(0.08, 8, 6), o.pants, knee);
+      mkSeg(knee, 0.072, 0.055, 0.4, o.pants);
+      const shoe = mk(new THREE.BoxGeometry(0.28, 0.1, 0.14), '#1c1c1c', knee);
+      shoe.position.set(0.06, -0.41, 0.01);
       return { hip, knee };
     };
-    const legL = mkLeg(-0.15);
-    const legR = mkLeg(0.15);
+    const legL = mkLeg(-0.12);
+    const legR = mkLeg(0.12);
 
     const mkArm = (sx) => {
-      const shoulder = mkJoint(g, sx, 1.5);
-      mkSeg(shoulder, 0.075, 0.06, 0.34, o.shirt);
-      const elbow = mkJoint(shoulder, 0, -0.34);
+      const shoulder = mkJoint(g, sx, 1.54);
+      mkSeg(shoulder, 0.068, 0.058, 0.32, o.shirt);
+      const elbow = mkJoint(shoulder, 0, -0.32);
       mk(new THREE.SphereGeometry(0.058, 8, 6), o.shirt, elbow);
-      mkSeg(elbow, 0.052, 0.042, 0.32, skin);
-      const hand = mk(new THREE.SphereGeometry(0.058, 8, 6), skin, elbow);
-      hand.position.y = -0.34;
+      mkSeg(elbow, 0.05, 0.042, 0.3, skin);
+      const hand = mk(new THREE.SphereGeometry(0.06, 8, 6), skin, elbow);
+      hand.position.y = -0.32;
       return { shoulder, elbow };
     };
     const armL = mkArm(-0.31);
