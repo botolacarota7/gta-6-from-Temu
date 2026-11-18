@@ -68,7 +68,19 @@ const UI = {
     document.getElementById('dialog').classList.add('hidden');
     if (typeof this._chefStop === 'function') this._chefStop();
     if (this._convKey) { window.removeEventListener('keydown', this._convKey); this._convKey = null; }
-    if (this._conv) { Memories.endConversation(this._conv); this._conv = null; }
+    if (this._conv) {
+      Memories.endConversation(this._conv);
+      const cp = this._conv.ped;
+      if (cp && cp._preConv) {
+        if (cp.state === 'react' && cp.stateT > 9000) {
+          cp.state = cp._preConv.state === 'walk' ? 'walk' : cp._preConv.state;
+          cp.stateT = 0;
+          cp.dest = null;
+        }
+        cp._preConv = null;
+      }
+      this._conv = null;
+    }
   },
 
   startConversation(ped) {
@@ -86,6 +98,7 @@ const UI = {
       this.toast('+ $20 di benvenuto da Antonio', 'money');
       this.updateHUD();
     }
+    ped._preConv = { state: ped.state, stateT: ped.stateT };
     if (ped.state === 'walk') { ped.state = 'react'; ped.stateT = 9999; }
     this._convKey = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); this.closeDialog(); }
