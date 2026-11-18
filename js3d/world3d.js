@@ -6,6 +6,34 @@ const World3 = {
   bubbleMap: new Map(),
   minimapBase: null, mmScale: 1,
   ready: false,
+  avatarReady: false,
+  avatarLib: {},
+  AVATAR_URLS: {
+    peds: [
+      'https://gobkit.com/freebies/human001/Cashier.glb',
+      'https://gobkit.com/freebies/human001/FoodCourier.glb',
+      'https://gobkit.com/freebies/human001/GrandmaShopper.glb',
+      'https://gobkit.com/freebies/human001/OfficeLady.glb',
+      'https://gobkit.com/freebies/human001/Schoolkid.glb',
+      'https://gobkit.com/freebies/human001/Shoplifter.glb',
+      'https://gobkit.com/freebies/human015/Student.glb',
+      'https://gobkit.com/freebies/human015/HotDogVendor.glb',
+      'https://gobkit.com/freebies/human015/DeliveryRider.glb',
+      'https://gobkit.com/freebies/human021/RestaurantGuest.glb',
+    ],
+    cops: [
+      'https://gobkit.com/freebies/human012/PatrolConstable.glb',
+      'https://gobkit.com/freebies/human012/HighwayPatrol.glb',
+      'https://gobkit.com/freebies/human015/PoliceOfficer.glb',
+    ],
+    gang: [
+      'https://gobkit.com/freebies/human012/ToughInmate.glb',
+      'https://gobkit.com/freebies/human012/EscapedConvict.glb',
+      'https://gobkit.com/freebies/human022/ConvictCommando.glb',
+    ],
+    antonio: ['https://gobkit.com/freebies/human021/Pizzaiolo.glb'],
+    player: ['https://gobkit.com/freebies/human014/StreetBrawler.glb'],
+  },
 
   init(canvas) {
     if (this.ready) return;
@@ -29,6 +57,7 @@ const World3 = {
     this.scene.add(this.sun.target);
 
     this.buildCity();
+    this.loadAvatars();
     this.buildMinimapBase();
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -222,7 +251,131 @@ const World3 = {
     this.scene.add(crosses);
   },
 
-  buildPersonMesh(o) {
+  // ---------- personaggi animati (GLB CC0 via CDN, fallback primitivi) ----------
+  loadAvatars() {
+    if (typeof THREE.GLTFLoader !== 'function' || typeof THREE.SkeletonUtils !== 'function') return;
+    const loader = new THREE.GLTFLoader();
+    const jobs = [];
+    for (const kind of Object.keys(this.AVATAR_URLS)) {
+      this.avatarLib[kind] = [];
+      for (const url of this.AVATAR_URLS[kind]) {
+        jobs.push(new Promise((res) => {
+          loader.load(url, (gltf) => {
+            if (gltf && gltf.scene) this.avatarLib[kind].push({ scene: gltf.scene, clips: gltf.animations || [] });
+            res();
+          }, undefined, () => res());
+        }));
+      }
+    }
+    Promise.all(jobs).then(() => {
+      for (const k of Object.keys(this.avatarLib)) if (!this.avatarLib[k].length) delete this.avatarLib[k];
+      this.avatarReady = true;
+      for (const p of [...Entities.peds, ...Entities.cops]) {
+        if (p.view) { this.scene.remove(p.view); p.view = null; }
+      }
+      if (Game.player && Game.player.view) { this.scene.remove(Game.player.view); Game.player.view = null; }
+    }).catch(() => {});
+  },
+
+  buildAvatar(kind) {
+    const pool = this.avatarLib[kind];
+    if (!pool || !pool.length) return null;
+    const proto = choice(pool);
+    let model;
+    try {
+      model = THREE.SkeletonUtils.clone(proto.scene);
+    } catch (e) { return null; }
+    const inner = new THREE.Group();
+    inner.rotation.y = Math.PI / 2;
+    inner.add(model);
+    model.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } });
+    const box = new THREE.Box3().setFromObject(model);
+    const h = Math.max(0.1, box.max.y - box.min.y);
+    const s = 1.9 / h;
+    model.scale.setScalar(s);
+    model.position.y = -box.min.y * s;
+    const clipBy = (re) => proto.clips.find((c) => re.test(c.name)) || null;
+    const mixer = new THREE.AnimationMixer(model);
+    const acts = {};
+    for (const [key, re] of [['idle', /idle/i], ['walk', /walk/i], ['run', /run/i], ['death', /death|die/i]]) {
+      const c = clipBy(re);
+      if (!c) continue;
+      const a = mixer.clipAction(c);
+      if (key === 'death') { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
+      a.setEffectiveWeight(key === 'idle' ? 1 : 0);
+      a.play();
+      acts[key] = a;
+    }
+    let hand = null;
+    model.traverse((m) => {
+      if (hand || !m.isBone) return;
+      const clean = m.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (/righthand|handright/.test(clean) || /handr$/.test(clean)) hand = m;
+    });
+    const parent = hand || inner;
+    const gun = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.08), this.basicMat('#141414'));
+    gun.position.set(0.12, 0, 0);
+    gun.visible = false;
+    parent.add(gun);
+    const bat = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.75, 8), this.lambertMat('#7a5a30'));
+    bat.position.set(0.1, -0.05, 0);
+    bat.rotation.x = Math.PI / 2.4;
+    bat.visible = false;
+    parent.add(bat);
+    const g = new THREE.Group();
+    g.add(inner);
+    g.userData.avatar = { mixer, acts, deadPlayed: false };
+    g.userData.parts = { gun, bat };
+    return g;
+  },
+
+  syncAvatarView(e, mesh, dt) {
+    const av = mesh.userData.avatar;
+    mesh.rotation.order = 'YXZ';
+    if (av.mixer) av.mixer.update(dt);
+    const dead = e.state === 'dead' || e.dead;
+    if (dead) {
+      if (av.acts.death && !av.deadPlayed) {
+        av.deadPlayed = true;
+        av.acts.death.reset();
+        av.acts.death.setEffectiveWeight(1);
+        av.acts.death.play();
+      }
+      if (av.acts.death) {
+        mesh.rotation.y = -e.angle;
+        mesh.position.set(e.x, 0.005, e.z);
+      } else {
+        mesh.rotation.z = Math.PI / 2;
+        mesh.position.set(e.x, 0.28, e.z);
+      }
+      return;
+    }
+    mesh.rotation.y = -e.angle;
+    mesh.rotation.z = 0;
+    const running = e.state === 'flee' || (e === Game.player && Input.down('shift'));
+    const moving = e.state !== 'react';
+    let pick = null;
+    if (moving) pick = running && av.acts.run ? 'run' : (av.acts.walk ? 'walk' : 'run');
+    else pick = av.acts.idle ? 'idle' : (av.acts.walk ? 'walk' : null);
+    for (const k of Object.keys(av.acts)) {
+      if (k === 'death') continue;
+      const a = av.acts[k];
+      const w = k === pick ? 1 : 0;
+      a.setEffectiveWeight(a.getEffectiveWeight() + (w - a.getEffectiveWeight()) * Math.min(1, dt * 9));
+      a.timeScale = k === 'run' ? 1.3 : (k === 'walk' ? running ? 1.45 : 1.1 : 1);
+    }
+    if (pick && !av.acts[pick]) {
+      for (const k of Object.keys(av.acts)) if (k !== 'death') av.acts[k].setEffectiveWeight(0);
+    }
+    mesh.position.set(e.x, 0.005, e.z);
+  },
+
+  buildPersonMesh(o, hint) {
+    const kind = hint || (o && o.isAntonio ? 'antonio' : (o && o.gang ? 'gang' : 'ped'));
+    if (this.avatarReady) {
+      const av = this.buildAvatar(kind);
+      if (av) return av;
+    }
     const g = new THREE.Group();
     const skin = o.skin || '#e0ac69';
     const mk = (geo, color, parent) => {
@@ -368,7 +521,7 @@ const World3 = {
   },
 
   buildCopMesh() {
-    return this.buildPersonMesh({ skin: '#e0ac69', shirt: '#1f4e8c', pants: '#16283f', hair: '#2b2b2b', hat: 'cap' });
+    return this.buildPersonMesh({ skin: '#e0ac69', shirt: '#1f4e8c', pants: '#16283f', hair: '#2b2b2b', hat: 'cap' }, 'cops');
   },
 
   buildCarMesh(color, len, wid) {
@@ -473,7 +626,8 @@ const World3 = {
   },
 
   // ---------- sincronizzazione mesh ----------
-  syncPersonView(e, mesh) {
+  syncPersonView(e, mesh, dt) {
+    if (mesh.userData.avatar) return this.syncAvatarView(e, mesh, dt == null ? 0.016 : dt);
     const parts = mesh.userData.parts;
     mesh.rotation.order = 'YXZ';
     mesh.rotation.y = -e.angle;
@@ -561,21 +715,21 @@ const World3 = {
 
     const pl = Game.player;
     seen.add(pl);
-    if (!pl.view) { pl.view = this.buildPersonMesh(pl.custom); pl.view.userData._entity = pl; this.scene.add(pl.view); }
+    if (!pl.view) { pl.view = this.buildPersonMesh(pl.custom, 'player'); pl.view.userData._entity = pl; this.scene.add(pl.view); }
     if (!pl.inCar && !pl.dead) {
       const pp = pl.view.userData.parts;
       if (pp.gun) pp.gun.visible = !!WEAPONS[pl.curWeapon].bullet;
       if (pp.bat) pp.bat.visible = pl.curWeapon === 'bat';
-      this.syncPersonView(pl, pl.view);
+      this.syncPersonView(pl, pl.view, dt);
       pl.view.visible = true;
     } else pl.view.visible = false;
 
     for (const p of Entities.peds) {
       if (p.state === 'dead') { p.view.visible = false; continue; }
       p.view.visible = true;
-      this.syncPersonView(p, p.view);
+      this.syncPersonView(p, p.view, dt);
     }
-    for (const c of Entities.cops) this.syncPersonView(c, c.view);
+    for (const c of Entities.cops) this.syncPersonView(c, c.view, dt);
     for (const c of Entities.cars) {
       c.view.position.set(c.x, 0, c.z);
       c.view.rotation.y = -c.angle;
