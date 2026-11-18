@@ -350,9 +350,12 @@ function boot() {
   });
 
   Game.canvas.addEventListener('click', () => {
-    if (Game.state !== 'play' || UI.dialogOpen || Phone.open || Game.paused) return;
-    if (document.pointerLockElement !== Game.canvas && Game.canvas.requestPointerLock) Game.canvas.requestPointerLock();
+    if (Touch.enabled || Game.state !== 'play' || UI.dialogOpen || Phone.open || Game.paused) return;
+    if (document.pointerLockElement !== Game.canvas && Game.canvas.requestPointerLock) {
+      try { Game.canvas.requestPointerLock(); } catch (err) {}
+    }
   });
+  Touch.init();
   window.addEventListener('mousemove', (e) => {
     if (document.pointerLockElement !== Game.canvas) return;
     Game.camYaw -= (e.movementX || 0) * 0.0026;
