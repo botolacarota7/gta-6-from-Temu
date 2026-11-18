@@ -68,6 +68,17 @@ const Systems = {
       } else if (!near) this.gangPedsSpawned = false;
     }
 
+    // ambient medici davanti all'ospedale
+    const hospitalDoor = City3.doors.find((d) => d.type === 'hospital');
+    if (hospitalDoor && dist(pl.x, pl.z, hospitalDoor.x, hospitalDoor.y) < 170) {
+      const medics = Entities.peds.filter((p) => p.medic && p.state !== 'dead').length;
+      if (medics < 3) {
+        const p = new Person3(hospitalDoor.x + rand(-14, 14), hospitalDoor.y + rand(6, 20), { shirt: '#eaf2f8', pants: '#9fb6cd', mood: 'friendly' });
+        p.medic = true;
+        Entities.peds.push(p);
+      }
+    }
+
     this.antonioCd = Math.max(0, (this.antonioCd || 0) - dt);
     const antonio = Entities.peds.find((p) => p.isAntonio && p.state !== 'dead');
     if (antonio && !UI.dialogOpen && !pl.inCar && !pl.dead && this.antonioCd <= 0 && dist(antonio.x, antonio.z, pl.x, pl.z) < 18) {
@@ -173,7 +184,12 @@ const Systems = {
       const a = rand(0, Math.PI * 2), d = rand(100, 150);
       const x = clamp(pl.x + Math.cos(a) * d, 10, City3.size - 10);
       const z = clamp(pl.z + Math.sin(a) * d, 10, City3.size - 10);
-      if (!City3.buildingAt(x, z, 2)) { Entities.cops.push(new Cop3(x, z)); return; }
+      if (!City3.buildingAt(x, z, 2)) {
+        const cop = new Cop3(x, z);
+        cop.swat = pl.wanted >= 3;
+        Entities.cops.push(cop);
+        return;
+      }
     }
   },
 
