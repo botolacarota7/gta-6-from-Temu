@@ -9,6 +9,13 @@ const Touch = {
 
   stamp() { this.lastTouchT = performance.now(); },
 
+  refreshWeapon() {
+    if (!this.fireBtn || !Game.player) return;
+    const icons = { fists: '\u270a', bat: '\ud83c\udfcf', pistol: '\ud83d\udd2b', smg: '\u26a1', shotgun: '\ud83c\udfaf' };
+    const ico = this.fireBtn.firstChild;
+    if (ico && icons[Game.player.curWeapon]) ico.textContent = icons[Game.player.curWeapon];
+  },
+
   detect() {
     const touchable = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0;
     const coarse = window.matchMedia ? window.matchMedia('(pointer: coarse)').matches : false;
@@ -57,11 +64,24 @@ const Touch = {
     // cluster bottoni destro
     const cluster = document.createElement('div');
     cluster.className = 'tc-cluster';
-    const mk = (label, press, release) => {
+    const mk = (icon, label, press, release, extra) => {
       const b = document.createElement('div');
-      b.className = 'tc-btn';
-      b.textContent = label;
-      b.addEventListener('touchstart', (e) => { e.preventDefault(); this.stamp(); b.classList.add('tc-active'); press(); }, { passive: false });
+      b.className = 'tc-btn' + (extra ? ' ' + extra : '');
+      const ico = document.createElement('div');
+      ico.className = 'tc-ico';
+      ico.textContent = icon;
+      const lab = document.createElement('div');
+      lab.className = 'tc-lab';
+      lab.textContent = label;
+      b.appendChild(ico);
+      b.appendChild(lab);
+      b.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.stamp();
+        b.classList.add('tc-active');
+        if (navigator.vibrate) { try { navigator.vibrate(8); } catch (err) {} }
+        press();
+      }, { passive: false });
       if (release) {
         const up = (e) => { e.preventDefault(); b.classList.remove('tc-active'); release(); };
         b.addEventListener('touchend', up);
@@ -70,12 +90,12 @@ const Touch = {
       cluster.appendChild(b);
       return b;
     };
-    mk('\ud83d\udd2b', () => { Input.mouse.down = true; }, () => { Input.mouse.down = false; });
-    mk('Corri', () => { Input.keys.add('shift'); }, () => { Input.keys.delete('shift'); });
-    mk('Entra', () => { Input.keys.add('f'); Input.pressed.add('f'); }, () => { Input.keys.delete('f'); });
-    mk('Parla', () => { Input.keys.add('t'); Input.pressed.add('t'); }, () => { Input.keys.delete('t'); });
-    mk('Usa', () => { Input.keys.add('e'); Input.pressed.add('e'); }, () => { Input.keys.delete('e'); });
-    mk('Armi', () => { Input.wheel += 1; });
+    this.fireBtn = mk('\ud83d\udd2b', 'Spara', () => { Input.mouse.down = true; }, () => { Input.mouse.down = false; }, 'tc-fire');
+    mk('\ud83c\udfc3', 'Corri', () => { Input.keys.add('shift'); }, () => { Input.keys.delete('shift'); });
+    mk('\ud83c\udfe0', 'Entra', () => { Input.keys.add('f'); Input.pressed.add('f'); }, () => { Input.keys.delete('f'); });
+    mk('\ud83d\udcac', 'Parla', () => { Input.keys.add('t'); Input.pressed.add('t'); }, () => { Input.keys.delete('t'); });
+    mk('\u270b', 'Usa', () => { Input.keys.add('e'); Input.pressed.add('e'); }, () => { Input.keys.delete('e'); });
+    mk('\u27f2', 'Armi', () => { Input.wheel += 1; });
     ui.appendChild(cluster);
 
     // pausa in alto a destra
@@ -108,6 +128,7 @@ const Touch = {
       const len = Math.hypot(dx, dy);
       if (len > max) { dx = dx / len * max; dy = dy / len * max; }
       knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      base.classList.add('live');
       this.brakeKeys();
       const th = r.width * 0.16;
       if (dy < -th) { Input.keys.add('w'); this.joyKeys.push('w'); }
@@ -121,6 +142,7 @@ const Touch = {
     if (this.joyId === null) return;
     this.joyId = null;
     knob.style.transform = 'translate(0px,0px)';
+    base.classList.remove('live');
     this.brakeKeys();
   },
 

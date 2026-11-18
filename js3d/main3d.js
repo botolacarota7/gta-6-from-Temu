@@ -318,6 +318,7 @@ function loop(now) {
   if (Game.player && World3.ready) {
     updateCamera();
     World3.updateDayNight(Game.timeMin);
+    Touch.refreshWeapon();
     World3.syncViews(dt);
     World3.renderer.render(World3.scene, World3.camera);
     World3.drawMinimap();
