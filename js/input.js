@@ -22,7 +22,11 @@ const Input = {
       this.mouse.x = (e.clientX - r.left) * (canvas.width / r.width);
       this.mouse.y = (e.clientY - r.top) * (canvas.height / r.height);
     });
-    canvas.addEventListener('mousedown', (e) => { if (e.button === 0) this.mouse.down = true; });
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (window.Touch && Touch.enabled && performance.now() - (Touch.lastTouchT || 0) < 800) return;
+      this.mouse.down = true;
+    });
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.down = false; });
     canvas.addEventListener('wheel', (e) => { this.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
